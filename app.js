@@ -137,16 +137,22 @@ function miembroParaNube(member) {
   return rec;
 }
 
-/* ---------------- Base de datos (IndexedDB) ---------------- */
+/* ---------------- Base de datos (IndexedDB) ----------------
+   En modo local es la base de datos; en modo nube funciona como
+   caché para trabajar sin internet + cola de cambios pendientes. */
 let db;
+let OFFLINE = false;
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('cfnj_membresia', 1);
+    const req = indexedDB.open('cfnj_membresia', 2);
     req.onupgradeneeded = (e) => {
       const d = e.target.result;
       if (!d.objectStoreNames.contains('miembros')) {
         d.createObjectStore('miembros', { keyPath: 'id', autoIncrement: true });
+      }
+      if (!d.objectStoreNames.contains('pendientes')) {
+        d.createObjectStore('pendientes', { keyPath: 'key' });
       }
     };
     req.onsuccess = () => { db = req.result; resolve(db); };
@@ -154,50 +160,180 @@ function openDB() {
   });
 }
 
-async function dbAll() {
-  if (sb) {
-    const { data, error } = await sb.from('miembros').select('*');
-    if (error) throw new Error(error.message);
-    return data || [];
-  }
+/* Operaciones genéricas sobre IndexedDB */
+function idbOp(store, modo, fn) {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction('miembros', 'readonly');
-    const req = tx.objectStore('miembros').getAll();
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function dbPut(member) {
-  if (sb) {
-    const { data, error } = await sb.from('miembros')
-      .upsert(miembroParaNube(member))
-      .select('id')
-      .single();
-    if (error) throw new Error(error.message);
-    return data.id;
-  }
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('miembros', 'readwrite');
-    const req = tx.objectStore('miembros').put(member);
+    const tx = db.transaction(store, modo);
+    const req = fn(tx.objectStore(store));
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
+const idbAll = (s) => idbOp(s, 'readonly', (o) => o.getAll());
+const idbPutV = (s, v) => idbOp(s, 'readwrite', (o) => o.put(v));
+const idbDel = (s, k) => idbOp(s, 'readwrite', (o) => o.delete(k));
+const idbClear = (s) => idbOp(s, 'readwrite', (o) => o.clear());
+
+function esErrorRed(err) {
+  return err instanceof TypeError ||
+    /failed to fetch|network|fetch failed|load failed|networkerror/i.test(err.message || '');
+}
+
+/* Superpone los cambios pendientes (hechos sin internet) sobre una lista */
+async function aplicarPendientes(lista) {
+  const pend = (await idbAll('pendientes')).sort((a, b) => a.ts - b.ts);
+  let out = [...lista];
+  for (const p of pend) {
+    if (p.tipo === 'put') {
+      const i = out.findIndex((m) => m.id === p.member.id);
+      if (i >= 0) out[i] = p.member; else out.push(p.member);
+    } else if (p.tipo === 'delete') {
+      out = out.filter((m) => m.id !== p.id);
+    }
+  }
+  return out;
+}
+
+async function guardarCache(lista) {
+  try {
+    await idbClear('miembros');
+    for (const m of lista) await idbPutV('miembros', m);
+  } catch {}
+}
+
+async function dbAll() {
+  if (sb) {
+    try {
+      const { data, error } = await sb.from('miembros').select('*');
+      if (error) throw new Error(error.message);
+      OFFLINE = false;
+      guardarCache(data || []);
+      actualizarEstadoSync();
+      return await aplicarPendientes(data || []);
+    } catch (err) {
+      if (!esErrorRed(err)) throw err;
+      // Sin internet: trabaja con la copia local
+      OFFLINE = true;
+      actualizarEstadoSync();
+      return await aplicarPendientes(await idbAll('miembros'));
+    }
+  }
+  return idbAll('miembros');
+}
+
+async function dbPut(member) {
+  if (sb) {
+    if (!OFFLINE) {
+      try {
+        const rec = miembroParaNube(member);
+        if (rec.id != null && rec.id < 0) delete rec.id; // los id temporales no van al servidor
+        const { data, error } = await sb.from('miembros').upsert(rec).select('id').single();
+        if (error) throw new Error(error.message);
+        return data.id;
+      } catch (err) {
+        if (!esErrorRed(err)) throw err;
+        OFFLINE = true;
+      }
+    }
+    // Sin internet: guarda el cambio en la cola y sigue trabajando
+    const temp = { ...member };
+    if (temp.id == null) temp.id = -Date.now(); // id temporal hasta sincronizar
+    await idbPutV('pendientes', { key: 'put:' + temp.id, tipo: 'put', member: temp, ts: Date.now() });
+    actualizarEstadoSync();
+    programarSync();
+    return temp.id;
+  }
+  return idbOp('miembros', 'readwrite', (o) => o.put(member));
+}
 
 async function dbDelete(id) {
   if (sb) {
-    const { error } = await sb.from('miembros').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    if (!OFFLINE) {
+      try {
+        const { error } = await sb.from('miembros').delete().eq('id', id);
+        if (error) throw new Error(error.message);
+        return;
+      } catch (err) {
+        if (!esErrorRed(err)) throw err;
+        OFFLINE = true;
+      }
+    }
+    // Sin internet: anota el borrado en la cola
+    await idbDel('pendientes', 'put:' + id); // si estaba pendiente de crearse/editarse, se descarta
+    if (id > 0) {
+      await idbPutV('pendientes', { key: 'del:' + id, tipo: 'delete', id, ts: Date.now() });
+    }
+    actualizarEstadoSync();
+    programarSync();
     return;
   }
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('miembros', 'readwrite');
-    const req = tx.objectStore('miembros').delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  return idbDel('miembros', id);
 }
+
+/* ---------------- Sincronización automática (modo nube) ---------------- */
+let syncTimer = null;
+let sincronizando = false;
+
+async function actualizarEstadoSync() {
+  const chip = $('#syncStatus');
+  if (!sb || !chip) return;
+  let n = 0;
+  try { n = (await idbAll('pendientes')).length; } catch {}
+  if (!OFFLINE && !n) { chip.classList.add('hidden'); return; }
+  chip.classList.remove('hidden');
+  chip.textContent = OFFLINE
+    ? (n ? `Sin conexión · ${n} cambio(s) guardados aquí` : 'Sin conexión · trabajando localmente')
+    : `Sincronizando ${n} cambio(s)…`;
+}
+
+function programarSync() {
+  if (!syncTimer) syncTimer = setInterval(intentarSync, 45000);
+}
+
+async function intentarSync() {
+  if (!sb || !SESION || sincronizando) return;
+  sincronizando = true;
+  try {
+    const pend = (await idbAll('pendientes')).sort((a, b) => a.ts - b.ts);
+    if (!pend.length) {
+      if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
+      return;
+    }
+    let ok = 0;
+    for (const p of pend) {
+      try {
+        if (p.tipo === 'put') {
+          const rec = miembroParaNube(p.member);
+          if (rec.id != null && rec.id < 0) delete rec.id;
+          const { error } = await sb.from('miembros').upsert(rec);
+          if (error) throw new Error(error.message);
+        } else {
+          const { error } = await sb.from('miembros').delete().eq('id', p.id);
+          if (error) throw new Error(error.message);
+        }
+        await idbDel('pendientes', p.key);
+        ok++;
+      } catch (err) {
+        if (esErrorRed(err)) break; // sigue sin internet: reintenta después
+        // Error real del servidor con este cambio: se descarta para no trancar la cola
+        console.warn('Cambio pendiente descartado:', err.message, p);
+        await idbDel('pendientes', p.key);
+      }
+    }
+    if (ok) {
+      OFFLINE = false;
+      toast(`${ok} cambio(s) sincronizados con la nube`);
+      await refreshMembers();
+      renderTab(ACTIVE_TAB);
+      renderDashboard();
+    }
+  } finally {
+    sincronizando = false;
+    actualizarEstadoSync();
+  }
+}
+
+window.addEventListener('online', () => { intentarSync(); });
 
 let MEMBERS = []; // caché en memoria
 
@@ -1751,7 +1887,9 @@ if (sb) {
         if (error) {
           loginMsg(/credentials/i.test(error.message)
             ? 'Correo o contraseña incorrectos'
-            : 'No se pudo iniciar sesión: ' + error.message);
+            : esErrorRed(error)
+              ? 'Sin internet. Para trabajar sin conexión agrega "?local" al final de la dirección, o vuelve a intentar cuando haya conexión.'
+              : 'No se pudo iniciar sesión: ' + error.message);
         }
       }
     } finally {
@@ -1818,16 +1956,27 @@ async function cargarApp() {
 }
 
 (async function init() {
+  // Permite abrir la app sin internet (cachea la interfaz) y la hace instalable
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  await openDB(); // en modo nube funciona como caché + cola offline
+
   if (sb) {
     // Modo nube: primero la sesión, luego los datos
     const { data: { session } } = await sb.auth.getSession();
     setSesion(session);
     sb.auth.onAuthStateChange((_evento, s) => setSesion(s));
-    if (!session) refreshIcons(); // pantalla de inicio de sesión
+    if (session) {
+      intentarSync();      // sube lo que haya quedado pendiente
+      programarSync();
+    } else {
+      refreshIcons();      // pantalla de inicio de sesión
+    }
     return;
   }
   // Modo local (carpeta): IndexedDB como siempre
-  await openDB();
   APP_CARGADA = true;
   await cargarApp();
 })();
