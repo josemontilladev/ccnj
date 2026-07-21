@@ -1,0 +1,39 @@
+{
+  "name": "membresia-cfnj",
+  "productName": "Membresía CFNJ",
+  "version": "1.0.0",
+  "description": "Sistema de Membresía — Confraternidad Cristiana Nueva Jerusalén",
+  "author": "Confraternidad Cristiana Nueva Jerusalén",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis",
+    "dist-mac": "electron-builder --mac dmg"
+  },
+  "devDependencies": {
+    "electron": "latest",
+    "electron-builder": "latest"
+  },
+  "build": {
+    "appId": "org.cfnj.membresia",
+    "productName": "Membresía CFNJ",
+    "files": [
+      "main.js",
+      "app/**/*",
+      "build/icon.ico"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Membresía CFNJ"
+    },
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity"
+    }
+  }
+}
