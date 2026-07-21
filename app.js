@@ -112,7 +112,11 @@ function resizeImage(src, maxDim, quality = 0.88) {
    Se activa cuando existe config-nube.js. Sin él, la app trabaja
    en modo local (IndexedDB), igual que siempre.
    ============================================================ */
-const NUBE = window.CONFIG_NUBE || null;
+/* Abrir con "?local" en la dirección fuerza el modo local (sin nube):
+   útil como emergencia sin internet o para pruebas */
+const NUBE = new URLSearchParams(location.search).has('local')
+  ? null
+  : (window.CONFIG_NUBE || null);
 const sb = (NUBE && window.supabase)
   ? window.supabase.createClient(NUBE.url, NUBE.anonKey)
   : null;
