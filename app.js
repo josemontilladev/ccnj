@@ -1727,9 +1727,13 @@ if (sb) {
           options: { data: { codigo } }
         });
         if (error) {
-          loginMsg(/already registered/i.test(error.message)
+          const msg = (typeof error.message === 'string' && error.message.trim() && error.message !== '{}')
+            ? error.message : 'error del servidor';
+          loginMsg(/already registered/i.test(msg)
             ? 'Ese correo ya tiene una cuenta. Inicia sesión.'
-            : 'No se pudo crear la cuenta: ' + error.message);
+            : /database error/i.test(msg)
+              ? 'El servidor rechazó el registro. Verifica el código de invitación o avisa al administrador.'
+              : 'No se pudo crear la cuenta: ' + msg);
           return;
         }
         if (!data.session) {
