@@ -1,0 +1,12 @@
+{
+  "name": "Membresía CFNJ",
+  "short_name": "Membresía",
+  "description": "Sistema de membresía de la Confraternidad Cristiana Nueva Jerusalén",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f2f6fc",
+  "theme_color": "#005FB2",
+  "icons": [
+    { "src": "favicon.png", "sizes": "256x256", "type": "image/png", "purpose": "any" }
+  ]
+}
