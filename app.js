@@ -1718,7 +1718,7 @@ if (sb) {
       if (modoRegistro) {
         // Crear cuenta (requiere el código de invitación de la iglesia)
         const codigo = $('#loginCodigo').value.trim();
-        if (codigo !== (NUBE.codigoInvitacion || 'CFNJ-2026')) {
+        if (codigo !== (NUBE.codigoInvitacion || 'CCNJ-2026')) {
           loginMsg('Código de invitación incorrecto. Pídelo al administrador.');
           return;
         }
