@@ -1,0 +1,14 @@
+# Datos personales y claves locales (no subir al repositorio)
+datos.js
+fotos.js
+planillas_extra.js
+planillas/
+*.lnk
+
+# Generados por Electron
+electron/node_modules/
+electron/dist/
+electron/app/
+
+# Otros
+__pycache__/

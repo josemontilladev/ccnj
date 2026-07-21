@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Membresía CFNJ — Confraternidad Cristiana Nueva Jerusalén</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<script>window.addEventListener('error', function(e) { var d = document.createElement('div'); d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#c00;color:#fff;z-index:9999;padding:8px;font:13px monospace'; d.textContent = 'ERROR: ' + e.message + ' - ' + (e.filename || '').split('/').pop() + ':' + e.lineno; document.body.appendChild(d); });</script>
+
+<div id="app">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="logo.png" alt="Confraternidad Cristiana Nueva Jerusalén">
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="inicio">
+        <span class="nav-ico"><i data-lucide="house"></i></span> Inicio
+      </button>
+      <button class="nav-item" data-tab="registrar">
+        <span class="nav-ico"><i data-lucide="user-plus"></i></span> Registrar
+      </button>
+      <button class="nav-item" data-tab="miembros">
+        <span class="nav-ico"><i data-lucide="users"></i></span> Miembros
+      </button>
+      <button class="nav-item" data-tab="carnets">
+        <span class="nav-ico"><i data-lucide="id-card"></i></span> Carnets
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-item" id="btnAjustes">
+        <span class="nav-ico"><i data-lucide="settings"></i></span> Ajustes
+      </button>
+      <div id="userBox" class="user-box hidden">
+        <span id="userEmail"></span>
+        <button class="btn-salir" id="btnSalir" title="Cerrar sesión"><i data-lucide="log-out"></i> Salir</button>
+      </div>
+      <p class="sidebar-tag">¡Exaltando el nombre de <b>Jesucristo!</b></p>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <main class="main">
+
+    <!-- ========== INICIO ========== -->
+    <section class="tab active" id="tab-inicio">
+      <header class="page-head">
+        <div>
+          <h1>Sistema de Membresía</h1>
+          <p class="subtitle">Confraternidad Cristiana Nueva Jerusalén · <span id="anioInicio">2026</span></p>
+        </div>
+        <button class="btn btn-primary" data-goto="registrar"><i data-lucide="user-plus"></i> Registrar miembro</button>
+      </header>
+
+      <div id="backupBanner" class="backup-banner hidden">
+        <i data-lucide="database-backup"></i>
+        <span id="backupMsg"></span>
+        <button class="btn btn-primary" id="btnBackupNow">Descargar respaldo</button>
+        <button class="btn btn-ghost" id="btnBackupLater">Después</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card stat-blue">
+          <span class="stat-num" id="statTotal">0</span>
+          <span class="stat-label">Miembros registrados</span>
+        </div>
+        <div class="stat-card stat-green">
+          <span class="stat-num" id="statFoto">0</span>
+          <span class="stat-label">Con foto para carnet</span>
+        </div>
+        <div class="stat-card stat-yellow">
+          <span class="stat-num" id="statFuncion">0</span>
+          <span class="stat-label">Con función en la iglesia</span>
+        </div>
+        <div class="stat-card stat-dark">
+          <span class="stat-num" id="statMes">0</span>
+          <span class="stat-label">Registrados este mes</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Últimos registros</h2>
+          <button class="btn btn-ghost" data-goto="miembros">Ver todos <i data-lucide="arrow-right"></i></button>
+        </div>
+        <div id="recientes" class="recent-list">
+          <p class="empty-msg">Aún no hay miembros registrados. Comienza subiendo una planilla en <b>Registrar</b>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== REGISTRAR ========== -->
+    <section class="tab" id="tab-registrar">
+      <header class="page-head">
+        <div>
+          <h1>Registrar miembros</h1>
+          <p class="subtitle">Sube las fotos de las planillas y el sistema leerá los datos automáticamente</p>
+        </div>
+        <button class="btn btn-ghost" id="btnManual"><i data-lucide="pen-line"></i> Llenar manualmente</button>
+      </header>
+
+      <div id="apiKeyWarning" class="alert alert-warn hidden">
+        <i data-lucide="triangle-alert"></i> Para la lectura automática de planillas necesitas una clave API en
+        <a href="#" id="linkAjustes"><b>Ajustes</b></a>. Mientras tanto puedes registrar manualmente.
+      </div>
+
+      <!-- Paso 1: subir -->
+      <div id="stepUpload">
+        <div class="dropzone" id="dropzone">
+          <div class="dz-inner">
+            <div class="dz-icon"><i data-lucide="cloud-upload"></i></div>
+            <h3>Arrastra aquí las fotos de las planillas</h3>
+            <p>Varias a la vez: los miembros se crean automáticamente en lote.<br>Una sola: podrás revisar los datos antes de guardar.</p>
+            <input type="file" id="fileInput" accept="image/*" multiple hidden>
+          </div>
+        </div>
+        <div id="queueInfo" class="queue-info hidden"></div>
+      </div>
+
+      <!-- Paso 1b: procesamiento en lote -->
+      <div id="stepBatch" class="hidden">
+        <div class="processing-box">
+          <img src="logo.png" class="processing-logo" alt="">
+          <h3 id="batchTitle">Procesando planillas…</h3>
+          <div class="batch-bar"><div class="batch-bar-fill" id="batchBarFill"></div></div>
+          <p id="batchStatus" class="batch-status"></p>
+          <div id="batchLog" class="batch-log"></div>
+          <div id="batchActions" class="batch-actions hidden">
+            <button class="btn btn-ghost" id="btnBatchReviewFailed"><i data-lucide="pen-line"></i> Revisar fallidas</button>
+            <button class="btn btn-ghost" id="btnBatchDone"><i data-lucide="users"></i> Ver miembros</button>
+            <button class="btn btn-green" id="btnBatchCarnets"><i data-lucide="id-card"></i> Generar carnets</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paso 2: procesando -->
+      <div id="stepProcessing" class="hidden">
+        <div class="processing-box">
+          <img src="logo.png" class="processing-logo" alt="">
+          <div class="loader"></div>
+          <h3>Leyendo la planilla…</h3>
+          <p>La inteligencia artificial está extrayendo los datos escritos</p>
+        </div>
+      </div>
+
+      <!-- Paso 3: revisar -->
+      <div id="stepReview" class="hidden">
+        <div class="review-grid">
+          <!-- Imagen de la planilla + recorte de foto -->
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Planilla y foto</h2>
+            </div>
+            <p class="hint" id="cropHint">Dibuja un recuadro sobre la foto de la persona para recortarla, o sube una foto aparte.</p>
+            <div class="crop-wrap">
+              <canvas id="cropCanvas"></canvas>
+            </div>
+            <div class="crop-actions">
+              <div class="photo-preview" id="photoPreview"><span>Sin foto</span></div>
+              <div class="crop-btns">
+                <button class="btn btn-green" id="btnCrop" disabled><i data-lucide="scissors"></i> Recortar selección</button>
+                <label class="btn btn-ghost" for="photoFileInput"><i data-lucide="image-up"></i> Subir foto aparte</label>
+                <input type="file" id="photoFileInput" accept="image/*" hidden>
+              </div>
+            </div>
+          </div>
+
+          <!-- Formulario -->
+          <div class="panel">
+            <div class="panel-head">
+              <h2 id="reviewTitle">Verifica los datos extraídos</h2>
+            </div>
+            <form id="memberForm" class="member-form" autocomplete="off">
+              <div class="form-sec">Datos personales</div>
+              <div class="fgrid">
+                <label class="f-wide">Nombres y apellidos *<input name="nombres" required></label>
+                <label>C.I.<input name="ci"></label>
+                <label>Teléfono<input name="telefono"></label>
+                <label>Fecha de nacimiento<input name="fechaNacimiento" placeholder="dd/mm/aaaa"></label>
+                <label>Lugar de nacimiento<input name="lugarNacimiento"></label>
+                <label>Estado civil<input name="estadoCivil"></label>
+                <label>Correo electrónico<input name="correo"></label>
+                <label class="f-wide">Dirección<input name="direccion"></label>
+                <label>Ocupación actual<input name="ocupacion"></label>
+                <label>Profesión / grado de instrucción<input name="profesion"></label>
+              </div>
+              <div class="form-sec">Familia</div>
+              <div class="fgrid">
+                <label>Esposo(a)<input name="esposo"></label>
+                <label>Hijos(as)<input name="hijos"></label>
+                <label class="f-wide">Padres<input name="padres"></label>
+                <label>¿Vive con sus padres?<input name="viveConPadres"></label>
+                <label>¿Vive con esposo(a) e hijos?<input name="viveConEsposoHijos"></label>
+              </div>
+              <div class="form-sec">Fe y servicio</div>
+              <div class="fgrid">
+                <label class="f-wide">¿Cuándo recibió al Señor Jesucristo?<input name="recibioCristo"></label>
+                <label class="f-wide">¿Cuándo y dónde se bautizó?<input name="bautizo"></label>
+                <label>Tiempo en la Confraternidad<input name="tiempoConfraternidad"></label>
+                <label>Función en la iglesia<input name="funcion" placeholder="Ej: Supervisora de Evangelismo"></label>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-ghost" id="btnCancelReview">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btnSaveMember"><i data-lucide="check"></i> Guardar miembro</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== MIEMBROS ========== -->
+    <section class="tab" id="tab-miembros">
+      <header class="page-head">
+        <div>
+          <h1>Miembros</h1>
+          <p class="subtitle">Base de datos de la membresía</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn btn-ghost" id="btnExportJSON"><i data-lucide="database-backup"></i> Respaldo</button>
+          <button class="btn btn-ghost" id="btnImportJSON"><i data-lucide="archive-restore"></i> Restaurar</button>
+          <input type="file" id="importFileInput" accept=".json" hidden>
+          <button class="btn btn-ghost" id="btnExportCSV"><i data-lucide="file-spreadsheet"></i> Excel (CSV)</button>
+          <button class="btn btn-primary" data-goto="registrar"><i data-lucide="user-plus"></i> Registrar</button>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <div class="search-wrap">
+          <i data-lucide="search"></i>
+          <input type="search" id="searchInput" class="search" placeholder="Buscar por nombre, cédula, teléfono, función…">
+        </div>
+        <select id="filterEstado" class="filter-select">
+          <option value="todos">Todos</option>
+          <option value="activos">Activos</option>
+          <option value="inactivos">Inactivos</option>
+          <option value="porRenovar">Por renovar</option>
+        </select>
+        <span id="memberCount" class="member-count"></span>
+      </div>
+
+      <div class="panel table-panel">
+        <table class="members-table">
+          <thead>
+            <tr>
+              <th></th><th>Nombre</th><th>C.I.</th><th>Teléfono</th><th>Función</th><th>Estado</th><th>Registro</th><th class="th-actions">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="membersTbody"></tbody>
+        </table>
+        <p class="empty-msg hidden" id="membersEmpty">No hay miembros que coincidan con la búsqueda.</p>
+      </div>
+    </section>
+
+    <!-- ========== CARNETS ========== -->
+    <section class="tab" id="tab-carnets">
+      <header class="page-head">
+        <div>
+          <h1>Carnets</h1>
+          <p class="subtitle">Selecciona los miembros y genera sus carnets en lote</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn btn-green" id="btnPrintCards" disabled><i data-lucide="printer"></i> Imprimir / PDF</button>
+          <button class="btn btn-primary" id="btnDownloadPNG" disabled><i data-lucide="download"></i> Descargar PNG</button>
+        </div>
+      </header>
+
+      <div class="carnet-layout">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Miembros</h2>
+            <label class="check-all"><input type="checkbox" id="checkAll"> Seleccionar todos</label>
+          </div>
+          <input type="search" id="carnetSearch" class="list-filter" placeholder="Filtrar miembros…">
+          <div id="carnetMemberList" class="carnet-member-list"></div>
+        </div>
+
+        <div class="panel carnet-preview-panel">
+          <div class="panel-head">
+            <h2>Vista previa</h2>
+            <label class="check-all"><input type="checkbox" id="checkQR"> QR de verificación</label>
+          </div>
+          <div class="modelo-picker" id="modeloPicker">
+            <button class="modelo-btn" data-modelo="clasico"><span class="modelo-dot d-clasico"></span>Clásico</button>
+            <button class="modelo-btn" data-modelo="azul"><span class="modelo-dot d-azul"></span>Azul</button>
+            <button class="modelo-btn" data-modelo="franja"><span class="modelo-dot d-franja"></span>Franja</button>
+            <button class="modelo-btn" data-modelo="oscuro"><span class="modelo-dot d-oscuro"></span>Elegante</button>
+          </div>
+          <div id="carnetPreview" class="carnet-preview">
+            <p class="empty-msg">Selecciona un miembro para ver su carnet</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ===== MODAL AJUSTES ===== -->
+<div class="modal-backdrop hidden" id="settingsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Ajustes</h2>
+      <button class="modal-close" data-close="settingsModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <label class="f-block">Año de membresía
+        <input type="text" id="setAnio" placeholder="2026">
+      </label>
+      <label class="f-block">Dirección de la sede (pie del carnet)
+        <textarea id="setSede" rows="2"></textarea>
+      </label>
+      <label class="f-block">RIF
+        <input type="text" id="setRif" placeholder="J-310653135">
+      </label>
+      <div class="f-block">
+        Renovación anual
+        <button class="btn btn-ghost" id="btnRenovar" type="button"><i data-lucide="refresh-cw"></i> <span id="renovarLabel">Iniciar renovación</span></button>
+        <small>Cambia el año de membresía y marca a todos los miembros como "Por renovar". Luego, en Miembros, haz clic en la insignia amarilla de cada persona cuando renueve.</small>
+      </div>
+      <details class="ajustes-avanzado">
+        <summary>Opciones avanzadas (técnicas)</summary>
+        <label class="f-block">Clave API de Google Gemini
+          <input type="password" id="setGeminiKey" placeholder="AIza…">
+        </label>
+        <label class="f-block">Clave API de OpenRouter
+          <input type="password" id="setOpenrouterKey" placeholder="sk-or-…">
+        </label>
+        <label class="f-block">Clave API de Groq
+          <input type="password" id="setGroqKey" placeholder="gsk_…">
+        </label>
+        <label class="f-block">Clave API de Claude
+          <input type="password" id="setApiKey" placeholder="sk-ant-…">
+        </label>
+      </details>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="btnSaveSettings"><i data-lucide="check"></i> Guardar ajustes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL FICHA DE MIEMBRO ===== -->
+<div class="modal-backdrop hidden" id="viewModal">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h2>Ficha del miembro</h2>
+      <button class="modal-close" data-close="viewModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body" id="viewBody"></div>
+    <div class="modal-foot view-foot">
+      <button class="btn btn-ghost" id="btnViewEdit"><i data-lucide="pencil"></i> Editar</button>
+      <button class="btn btn-green" id="btnViewWhatsApp"><i data-lucide="send"></i> WhatsApp</button>
+      <button class="btn btn-primary" id="btnViewCarnet"><i data-lucide="id-card"></i> Descargar carnet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL EDITAR ===== -->
+<div class="modal-backdrop hidden" id="editModal">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h2>Editar miembro</h2>
+      <button class="modal-close" data-close="editModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="edit-photo-row">
+        <div class="photo-preview" id="editPhotoPreview"><span>Sin foto</span></div>
+        <label class="btn btn-ghost" for="editPhotoInput"><i data-lucide="image-up"></i> Cambiar foto</label>
+        <input type="file" id="editPhotoInput" accept="image/*" hidden>
+      </div>
+      <form id="editForm" class="member-form" autocomplete="off">
+        <div class="fgrid">
+          <label class="f-wide">Nombres y apellidos *<input name="nombres" required></label>
+          <label>C.I.<input name="ci"></label>
+          <label>Teléfono<input name="telefono"></label>
+          <label>Fecha de nacimiento<input name="fechaNacimiento"></label>
+          <label>Lugar de nacimiento<input name="lugarNacimiento"></label>
+          <label>Estado civil<input name="estadoCivil"></label>
+          <label>Correo electrónico<input name="correo"></label>
+          <label class="f-wide">Dirección<input name="direccion"></label>
+          <label>Ocupación<input name="ocupacion"></label>
+          <label>Profesión<input name="profesion"></label>
+          <label>Esposo(a)<input name="esposo"></label>
+          <label>Hijos(as)<input name="hijos"></label>
+          <label class="f-wide">Padres<input name="padres"></label>
+          <label>¿Vive con sus padres?<input name="viveConPadres"></label>
+          <label>¿Vive con esposo(a) e hijos?<input name="viveConEsposoHijos"></label>
+          <label class="f-wide">¿Cuándo recibió al Señor?<input name="recibioCristo"></label>
+          <label class="f-wide">¿Cuándo y dónde se bautizó?<input name="bautizo"></label>
+          <label>Tiempo en la Confraternidad<input name="tiempoConfraternidad"></label>
+          <label>Función en la iglesia<input name="funcion"></label>
+          <label>Estado
+            <select name="estado">
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary"><i data-lucide="check"></i> Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===== INICIO DE SESIÓN (modo nube) ===== -->
+<div id="loginOverlay" class="login-overlay hidden">
+  <form id="loginForm" class="login-card" autocomplete="on">
+    <img src="logo.png" alt="Confraternidad Cristiana Nueva Jerusalén">
+    <h2>Sistema de Membresía</h2>
+    <p>Inicia sesión para continuar</p>
+    <input type="email" id="loginEmail" placeholder="Correo electrónico" required autocomplete="username">
+    <input type="password" id="loginPass" placeholder="Contraseña" required autocomplete="current-password">
+    <div id="loginError" class="login-error hidden"></div>
+    <button class="btn btn-primary" type="submit" id="btnLogin"><i data-lucide="log-in"></i> Entrar</button>
+  </form>
+</div>
+
+<!-- ===== CONTENEDOR DE IMPRESIÓN ===== -->
+<div id="printArea"></div>
+
+<!-- ===== TOAST ===== -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="assets.js"></script>
+<script src="fotos.js"></script>
+<script src="datos.js"></script>
+<script src="planillas_extra.js"></script>
+<script src="config-nube.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
