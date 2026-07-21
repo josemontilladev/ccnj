@@ -59,7 +59,7 @@ language plpgsql
 security definer
 as $$
 begin
-  if coalesce(new.raw_user_meta_data->>'codigo', '') <> 'CFNJ-2026' then
+  if coalesce(new.raw_user_meta_data->>'codigo', '') <> 'CCNJ-2026' then
     raise exception 'Codigo de invitacion incorrecto';
   end if;
   return new;
