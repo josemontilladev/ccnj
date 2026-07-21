@@ -47,3 +47,26 @@ create policy "miembros_update" on public.miembros
   for update to authenticated using (true);
 create policy "miembros_delete" on public.miembros
   for delete to authenticated using (true);
+
+-- ============================================================
+-- Registro con código de invitación: bloquea en el servidor la
+-- creación de cuentas que no traigan el código correcto.
+-- Si cambias el código, cámbialo aquí Y en config-nube.js.
+-- ============================================================
+create or replace function public.validar_codigo_invitacion()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  if coalesce(new.raw_user_meta_data->>'codigo', '') <> 'CFNJ-2026' then
+    raise exception 'Codigo de invitacion incorrecto';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_codigo_invitacion on auth.users;
+create trigger trg_codigo_invitacion
+  before insert on auth.users
+  for each row execute function public.validar_codigo_invitacion();

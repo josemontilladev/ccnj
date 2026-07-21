@@ -1683,21 +1683,71 @@ function setSesion(session) {
 }
 
 if (sb) {
+  let modoRegistro = false;
+
+  function loginMsg(texto, ok = false) {
+    const el = $('#loginError');
+    el.textContent = texto;
+    el.classList.toggle('ok', ok);
+    el.classList.remove('hidden');
+  }
+
+  $('#btnToggleRegistro').addEventListener('click', () => {
+    modoRegistro = !modoRegistro;
+    $('#loginSubtitle').textContent = modoRegistro
+      ? 'Crea tu cuenta con el código de invitación de la iglesia'
+      : 'Inicia sesión para continuar';
+    $('#loginCodigo').classList.toggle('hidden', !modoRegistro);
+    $('#loginCodigo').required = modoRegistro;
+    $('#btnLoginLabel').textContent = modoRegistro ? 'Crear cuenta' : 'Entrar';
+    $('#btnToggleRegistro').innerHTML = modoRegistro
+      ? '¿Ya tienes cuenta? <b>Inicia sesión</b>'
+      : '¿No tienes cuenta? <b>Créala aquí</b>';
+    $('#loginError').classList.add('hidden');
+  });
+
   $('#loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = $('#btnLogin');
     btn.disabled = true;
     $('#loginError').classList.add('hidden');
-    const { error } = await sb.auth.signInWithPassword({
-      email: $('#loginEmail').value.trim(),
-      password: $('#loginPass').value
-    });
-    btn.disabled = false;
-    if (error) {
-      $('#loginError').textContent = /credentials/i.test(error.message)
-        ? 'Correo o contraseña incorrectos'
-        : 'No se pudo iniciar sesión: ' + error.message;
-      $('#loginError').classList.remove('hidden');
+    const email = $('#loginEmail').value.trim();
+    const password = $('#loginPass').value;
+
+    try {
+      if (modoRegistro) {
+        // Crear cuenta (requiere el código de invitación de la iglesia)
+        const codigo = $('#loginCodigo').value.trim();
+        if (codigo !== (NUBE.codigoInvitacion || 'CFNJ-2026')) {
+          loginMsg('Código de invitación incorrecto. Pídelo al administrador.');
+          return;
+        }
+        const { data, error } = await sb.auth.signUp({
+          email, password,
+          options: { data: { codigo } }
+        });
+        if (error) {
+          loginMsg(/already registered/i.test(error.message)
+            ? 'Ese correo ya tiene una cuenta. Inicia sesión.'
+            : 'No se pudo crear la cuenta: ' + error.message);
+          return;
+        }
+        if (!data.session) {
+          loginMsg('Cuenta creada. Revisa tu correo y confirma la cuenta para poder entrar.', true);
+          return;
+        }
+        // Con confirmación desactivada, entra de una vez
+        toast('Cuenta creada, ¡bienvenido!');
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) {
+          loginMsg(/credentials/i.test(error.message)
+            ? 'Correo o contraseña incorrectos'
+            : 'No se pudo iniciar sesión: ' + error.message);
+        }
+      }
+    } finally {
+      btn.disabled = false;
     }
   });
 
