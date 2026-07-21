@@ -1151,6 +1151,60 @@ function estadoFilterMatch(m, filtro) {
   return true;
 }
 
+/* ---------------- Desplegables estilizados ----------------
+   Reemplazan visualmente a los <select> nativos (que no se pueden
+   estilizar) manteniendo el select oculto como fuente del valor. */
+function cerrarSelects(excepto) {
+  $$('.cselect-menu').forEach(m => { if (m !== excepto) m.classList.add('hidden'); });
+}
+document.addEventListener('click', () => cerrarSelects());
+
+function customizarSelect(sel) {
+  if (!sel || sel.dataset.custom) return;
+  sel.dataset.custom = '1';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'cselect';
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'cselect-btn';
+  const menu = document.createElement('div');
+  menu.className = 'cselect-menu hidden';
+  wrap.append(btn, menu);
+
+  const build = () => {
+    const actual = sel.options[sel.selectedIndex];
+    btn.innerHTML = `<span>${esc(actual ? actual.textContent : '')}</span><i data-lucide="chevron-down"></i>`;
+    menu.innerHTML = [...sel.options].map((o, i) =>
+      `<button type="button" class="cselect-opt${i === sel.selectedIndex ? ' sel' : ''}" data-i="${i}">${esc(o.textContent)}</button>`
+    ).join('');
+    refreshIcons();
+  };
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    cerrarSelects(menu);
+    build();
+    menu.classList.toggle('hidden');
+  });
+
+  menu.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const o = e.target.closest('.cselect-opt');
+    if (!o) return;
+    sel.selectedIndex = Number(o.dataset.i);
+    sel.dispatchEvent(new Event('change'));
+    build();
+    menu.classList.add('hidden');
+  });
+
+  sel._rebuild = build;
+  build();
+}
+
 /* ---------------- Filtros avanzados ---------------- */
 const FILTROS = { funcion: '', foto: '', anioRegistro: '', anioConversion: '', mesCumple: '', direccion: '' };
 
@@ -1198,6 +1252,10 @@ function llenarOpcionesFiltros() {
   llenar('#fFuncion', funciones);
   llenar('#fAnioRegistro', aniosReg);
   llenar('#fAnioConversion', aniosConv);
+  ['#fFuncion', '#fAnioRegistro', '#fAnioConversion'].forEach(s => {
+    const el = $(s);
+    if (el._rebuild) el._rebuild();
+  });
 }
 
 $('#btnFiltros').addEventListener('click', () => {
@@ -1379,6 +1437,7 @@ function openEditModal(m) {
   form.reset();
   FIELD_KEYS.forEach(k => { if (form.elements[k]) form.elements[k].value = m[k] || ''; });
   form.elements.estado.value = m.estado === 'Inactivo' ? 'Inactivo' : 'Activo';
+  if (form.elements.estado._rebuild) form.elements.estado._rebuild();
   const pv = $('#editPhotoPreview');
   pv.innerHTML = editPhoto ? `<img src="${editPhoto}" alt="">` : '<span>Sin foto</span>';
   pv.classList.toggle('has-photo', !!editPhoto);
@@ -2025,6 +2084,10 @@ async function cargarApp() {
   await importSeeds();
   renderDashboard();
   updateModeloPicker();
+  // Desplegables con el estilo del sistema
+  ['#filterEstado', '#fFoto', '#fMesCumple', '#fFuncion', '#fAnioRegistro', '#fAnioConversion']
+    .forEach(s => customizarSelect($(s)));
+  customizarSelect($('#editForm').elements.estado);
   $('#checkQR').checked = settings.carnetQR !== false;
   checkBackupReminder();
   $('#apiKeyWarning').classList.toggle('hidden', hasAI());
