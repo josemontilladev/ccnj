@@ -13,7 +13,7 @@ const DEFAULTS = {
   geminiKey: '',     // Google Gemini (principal: gratuita y disponible en Venezuela)
   openrouterKey: '', // OpenRouter (respaldo si Gemini falla)
   groqKey: '',       // Groq (no disponible desde Venezuela sin VPN)
-  modeloCarnet: 'clasico',
+  modeloCarnet: 'franja',
   carnetQR: true,
   anio: '2026',
   sede: 'Auditorio Canaima frente a la plaza Bolívar. Ciudad Ojeda, Estado Zulia - Venezuela',
