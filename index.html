@@ -421,11 +421,13 @@
   <form id="loginForm" class="login-card" autocomplete="on">
     <img src="logo.png" alt="Confraternidad Cristiana Nueva Jerusalén">
     <h2>Sistema de Membresía</h2>
-    <p>Inicia sesión para continuar</p>
+    <p id="loginSubtitle">Inicia sesión para continuar</p>
     <input type="email" id="loginEmail" placeholder="Correo electrónico" required autocomplete="username">
-    <input type="password" id="loginPass" placeholder="Contraseña" required autocomplete="current-password">
+    <input type="password" id="loginPass" placeholder="Contraseña" required autocomplete="current-password" minlength="6">
+    <input type="text" id="loginCodigo" class="hidden" placeholder="Código de invitación" autocomplete="off">
     <div id="loginError" class="login-error hidden"></div>
-    <button class="btn btn-primary" type="submit" id="btnLogin"><i data-lucide="log-in"></i> Entrar</button>
+    <button class="btn btn-primary" type="submit" id="btnLogin"><i data-lucide="log-in"></i> <span id="btnLoginLabel">Entrar</span></button>
+    <button type="button" class="login-toggle" id="btnToggleRegistro">¿No tienes cuenta? <b>Créala aquí</b></button>
   </form>
 </div>
 

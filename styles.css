@@ -681,6 +681,16 @@ svg.lucide {
   font-size: 13px; font-weight: 600;
   padding: 10px 12px;
 }
+.login-error.ok { background: #e8f6ec; color: #0a6626; }
+.login-toggle {
+  border: 0; background: transparent;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px; color: var(--gris);
+  cursor: pointer;
+  margin-top: 2px;
+}
+.login-toggle b { color: var(--azul); }
+.login-toggle:hover b { text-decoration: underline; }
 
 .user-box {
   display: flex; align-items: center; justify-content: space-between;
