@@ -251,7 +251,42 @@
           <option value="inactivos">Inactivos</option>
           <option value="porRenovar">Por renovar</option>
         </select>
+        <button class="btn btn-ghost" id="btnFiltros"><i data-lucide="sliders-horizontal"></i> Filtros</button>
         <span id="memberCount" class="member-count"></span>
+      </div>
+
+      <div id="filtrosAvanzados" class="filtros-panel hidden">
+        <label>Función
+          <select id="fFuncion"><option value="">Todas</option></select>
+        </label>
+        <label>Foto
+          <select id="fFoto">
+            <option value="">Todos</option>
+            <option value="si">Con foto</option>
+            <option value="no">Sin foto</option>
+          </select>
+        </label>
+        <label>Miembro desde (año)
+          <select id="fAnioRegistro"><option value="">Todos</option></select>
+        </label>
+        <label>Año de conversión
+          <select id="fAnioConversion"><option value="">Todos</option></select>
+        </label>
+        <label>Mes de cumpleaños
+          <select id="fMesCumple">
+            <option value="">Todos</option>
+            <option value="1">Enero</option><option value="2">Febrero</option>
+            <option value="3">Marzo</option><option value="4">Abril</option>
+            <option value="5">Mayo</option><option value="6">Junio</option>
+            <option value="7">Julio</option><option value="8">Agosto</option>
+            <option value="9">Septiembre</option><option value="10">Octubre</option>
+            <option value="11">Noviembre</option><option value="12">Diciembre</option>
+          </select>
+        </label>
+        <label>Dirección o sector
+          <input type="text" id="fDireccion" placeholder="Ej: El Menito">
+        </label>
+        <button class="btn btn-ghost" id="btnLimpiarFiltros"><i data-lucide="filter-x"></i> Limpiar filtros</button>
       </div>
 
       <div class="panel table-panel">

@@ -1151,12 +1151,91 @@ function estadoFilterMatch(m, filtro) {
   return true;
 }
 
+/* ---------------- Filtros avanzados ---------------- */
+const FILTROS = { funcion: '', foto: '', anioRegistro: '', anioConversion: '', mesCumple: '', direccion: '' };
+
+function anioEnTexto(t) {
+  const m = String(t || '').match(/(19|20)\d{2}/);
+  return m ? m[0] : '';
+}
+
+function mesNacimiento(t) {
+  // dd/mm/aaaa, dd-mm-aaaa o dd.mm.aaaa
+  const m = String(t || '').match(/^\s*\d{1,2}[\/\-.](\d{1,2})[\/\-.]/);
+  return m ? String(parseInt(m[1], 10)) : '';
+}
+
+function matchAvanzado(m) {
+  if (FILTROS.funcion && (m.funcion || '').trim() !== FILTROS.funcion) return false;
+  if (FILTROS.foto === 'si' && !m.foto) return false;
+  if (FILTROS.foto === 'no' && m.foto) return false;
+  if (FILTROS.anioRegistro) {
+    const anio = m.fechaRegistro ? String(new Date(m.fechaRegistro).getFullYear()) : '';
+    if (anio !== FILTROS.anioRegistro) return false;
+  }
+  if (FILTROS.anioConversion && anioEnTexto(m.recibioCristo) !== FILTROS.anioConversion) return false;
+  if (FILTROS.mesCumple && mesNacimiento(m.fechaNacimiento) !== FILTROS.mesCumple) return false;
+  if (FILTROS.direccion && !norm(m.direccion).includes(norm(FILTROS.direccion))) return false;
+  return true;
+}
+
+function hayFiltrosActivos() {
+  return Object.values(FILTROS).some(v => v);
+}
+
+/* Rellena las opciones de los selectores según los datos reales */
+function llenarOpcionesFiltros() {
+  const llenar = (sel, valores) => {
+    const el = $(sel);
+    const actual = el.value;
+    el.innerHTML = '<option value="">' + el.options[0].textContent + '</option>' +
+      valores.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    el.value = valores.includes(actual) ? actual : '';
+  };
+  const funciones = [...new Set(MEMBERS.map(m => (m.funcion || '').trim()).filter(Boolean))].sort();
+  const aniosReg = [...new Set(MEMBERS.map(m => m.fechaRegistro ? String(new Date(m.fechaRegistro).getFullYear()) : '').filter(Boolean))].sort();
+  const aniosConv = [...new Set(MEMBERS.map(m => anioEnTexto(m.recibioCristo)).filter(Boolean))].sort();
+  llenar('#fFuncion', funciones);
+  llenar('#fAnioRegistro', aniosReg);
+  llenar('#fAnioConversion', aniosConv);
+}
+
+$('#btnFiltros').addEventListener('click', () => {
+  const panel = $('#filtrosAvanzados');
+  const abrir = panel.classList.contains('hidden');
+  if (abrir) llenarOpcionesFiltros();
+  panel.classList.toggle('hidden', !abrir);
+});
+
+[['#fFuncion', 'funcion'], ['#fFoto', 'foto'], ['#fAnioRegistro', 'anioRegistro'],
+ ['#fAnioConversion', 'anioConversion'], ['#fMesCumple', 'mesCumple']].forEach(([sel, clave]) => {
+  $(sel).addEventListener('change', (e) => {
+    FILTROS[clave] = e.target.value;
+    renderMembersTable();
+  });
+});
+
+$('#fDireccion').addEventListener('input', (e) => {
+  FILTROS.direccion = e.target.value.trim();
+  renderMembersTable();
+});
+
+$('#btnLimpiarFiltros').addEventListener('click', () => {
+  Object.keys(FILTROS).forEach(k => { FILTROS[k] = ''; });
+  ['#fFuncion', '#fFoto', '#fAnioRegistro', '#fAnioConversion', '#fMesCumple'].forEach(s => { $(s).value = ''; });
+  $('#fDireccion').value = '';
+  $('#searchInput').value = '';
+  $('#filterEstado').value = 'todos';
+  renderMembersTable();
+});
+
 function renderMembersTable() {
   const q = $('#searchInput').value.trim();
   const filtro = $('#filterEstado').value;
-  const rows = MEMBERS.filter(m => memberMatches(m, q) && estadoFilterMatch(m, filtro));
+  const rows = MEMBERS.filter(m => memberMatches(m, q) && estadoFilterMatch(m, filtro) && matchAvanzado(m));
   const tbody = $('#membersTbody');
-  $('#memberCount').textContent = (q || filtro !== 'todos')
+  $('#btnFiltros').classList.toggle('filtros-activos', hayFiltrosActivos());
+  $('#memberCount').textContent = (q || filtro !== 'todos' || hayFiltrosActivos())
     ? `${rows.length} de ${MEMBERS.length} miembros`
     : `${MEMBERS.length} miembro${MEMBERS.length === 1 ? '' : 's'}`;
   $('#membersEmpty').classList.toggle('hidden', rows.length > 0);
