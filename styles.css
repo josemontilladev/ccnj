@@ -763,9 +763,10 @@ svg.lucide {
 .carnet .tri .t-am { background: #feeb01; }
 
 .carnet .c-logo {
-  width: 27.5mm;
-  margin-top: 2mm;
+  width: 26mm;
+  margin-top: 1.8mm;
   display: block;
+  flex-shrink: 0;
   position: relative; z-index: 2;
 }
 .carnet .c-rif {
@@ -781,7 +782,8 @@ svg.lucide {
   width: 21mm; height: 24.5mm;
   border-radius: 2mm;
   object-fit: cover;
-  margin-top: 1.6mm;
+  flex-shrink: 0;
+  margin-top: 1.4mm;
   border: .55mm solid #0065ed;
   box-shadow: 0 1.2mm 3mm rgba(0, 70, 170, .25);
   background: #eef2fa;
@@ -831,9 +833,10 @@ svg.lucide {
 .carnet .c-band {
   margin-top: auto;
   width: 100%;
+  flex-shrink: 0;
   position: relative;
   background: linear-gradient(135deg, #0065ed, #0047a8);
-  padding: 1.9mm 2mm 1.6mm;
+  padding: 1.6mm 2mm 1.4mm;
   z-index: 2;
 }
 .carnet .c-band::before {
@@ -852,8 +855,8 @@ svg.lucide {
 .carnet .c-sede {
   font-size: 1.75mm;
   color: rgba(255,255,255,.85);
-  margin-top: .7mm;
-  line-height: 1.35;
+  margin-top: .5mm;
+  line-height: 1.25;
   font-weight: 500;
 }
 
@@ -916,7 +919,7 @@ svg.lucide {
 .carnet.m-franja .c-lat {
   width: 8mm;
   flex-shrink: 0;
-  background: linear-gradient(180deg, #0065ed 0%, #079832 100%);
+  background: #0065ed;
   border-right: .8mm solid #feeb01;
   display: flex;
   align-items: center;
@@ -986,10 +989,12 @@ svg.lucide {
 /* ---- QR de verificación ---- */
 .carnet .c-qr {
   width: 7.5mm; height: 7.5mm;
-  margin-top: .8mm;
+  margin-top: .7mm;
+  margin-bottom: .7mm;
   background: #fff;
   padding: .4mm;
   border-radius: .8mm;
+  flex-shrink: 0;
   z-index: 2;
 }
 
