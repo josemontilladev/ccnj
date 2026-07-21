@@ -66,6 +66,10 @@ begin
 end;
 $$;
 
+-- Permisos: el servicio de autenticación debe poder ejecutar la función
+grant usage on schema public to supabase_auth_admin;
+grant execute on function public.validar_codigo_invitacion() to supabase_auth_admin;
+
 drop trigger if exists trg_codigo_invitacion on auth.users;
 create trigger trg_codigo_invitacion
   before insert on auth.users
