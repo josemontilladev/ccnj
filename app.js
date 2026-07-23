@@ -194,22 +194,47 @@ async function aplicarPendientes(lista) {
   return out;
 }
 
-async function guardarCache(lista) {
-  try {
-    await idbClear('miembros');
-    for (const m of lista) await idbPutV('miembros', m);
-  } catch {}
+function guardarCache(lista) {
+  // Una sola transacción para toda la lista (mucho más rápido que ir de uno en uno)
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction('miembros', 'readwrite');
+      const store = tx.objectStore('miembros');
+      store.clear();
+      for (const m of lista) store.put(m);
+      tx.oncomplete = resolve;
+      tx.onerror = resolve;
+    } catch { resolve(); }
+  });
 }
 
-async function dbAll() {
+/* Todas las columnas menos "foto": las fotos (base64) son lo pesado de bajar */
+const COLUMNAS_SIN_FOTO = 'id,nombres,ci,fechaNacimiento,lugarNacimiento,estadoCivil,correo,telefono,' +
+  'direccion,ocupacion,profesion,esposo,hijos,padres,viveConPadres,viveConEsposoHijos,recibioCristo,' +
+  'bautizo,tiempoConfraternidad,funcion,estado,renovado,seedKey,fechaRegistro';
+
+async function dbAll(onParcial) {
   if (sb) {
     try {
-      const { data, error } = await sb.from('miembros').select('*');
+      // 1) Datos ligeros sin fotos: llegan rápido y permiten pintar la interfaz ya
+      const { data: ligeros, error } = await sb.from('miembros').select(COLUMNAS_SIN_FOTO);
       if (error) throw new Error(error.message);
       OFFLINE = false;
-      guardarCache(data || []);
+      if (onParcial) {
+        // Mientras bajan las fotos de la nube, usa las de la copia local
+        const fotosCache = new Map();
+        try { (await idbAll('miembros')).forEach(m => fotosCache.set(m.id, m.foto)); } catch {}
+        const parcial = ligeros.map(m => ({ ...m, foto: fotosCache.get(m.id) || null }));
+        onParcial(await aplicarPendientes(parcial));
+      }
+      // 2) Las fotos (lo pesado)
+      const { data: fotos, error: e2 } = await sb.from('miembros').select('id,foto');
+      if (e2) throw new Error(e2.message);
+      const mapaFotos = new Map((fotos || []).map(f => [f.id, f.foto]));
+      const lista = ligeros.map(m => ({ ...m, foto: mapaFotos.get(m.id) || null }));
+      guardarCache(lista);
       actualizarEstadoSync();
-      return await aplicarPendientes(data || []);
+      return await aplicarPendientes(lista);
     } catch (err) {
       if (!esErrorRed(err)) throw err;
       // Sin internet: trabaja con la copia local
@@ -337,9 +362,16 @@ window.addEventListener('online', () => { intentarSync(); });
 
 let MEMBERS = []; // caché en memoria
 
-async function refreshMembers() {
-  MEMBERS = await dbAll();
-  MEMBERS.sort((a, b) => (b.fechaRegistro || '').localeCompare(a.fechaRegistro || ''));
+function ordenarMembers(lista) {
+  lista.sort((a, b) => (b.fechaRegistro || '').localeCompare(a.fechaRegistro || ''));
+  return lista;
+}
+
+async function refreshMembers(onParcial) {
+  MEMBERS = ordenarMembers(await dbAll(onParcial && ((lista) => {
+    MEMBERS = ordenarMembers(lista);
+    onParcial();
+  })));
 }
 
 /* ---------------- Navegación ---------------- */
@@ -2249,14 +2281,50 @@ async function importSeeds() {
   }
 }
 
+/* Esqueleto de carga: se muestra mientras bajan los datos la primera vez */
+function mostrarSkeleton() {
+  ['#statTotal', '#statFoto', '#statFuncion', '#statMes']
+    .forEach(s => { $(s).innerHTML = '<span class="sk sk-num"></span>'; });
+  $('#recientes').innerHTML = Array.from({ length: 4 }, () => `
+    <div class="recent-item">
+      <div class="avatar sk"></div>
+      <div style="flex:1"><div class="sk sk-linea"></div><div class="sk sk-linea corta"></div></div>
+    </div>`).join('');
+  $('#membersEmpty').classList.add('hidden');
+  $('#memberCount').textContent = 'Cargando…';
+  $('#membersTbody').innerHTML = Array.from({ length: 8 }, () => `
+    <tr>
+      <td><div class="avatar sk"></div></td>
+      <td><div class="sk sk-linea"></div></td>
+      <td><div class="sk sk-linea corta"></div></td>
+      <td><div class="sk sk-linea corta"></div></td>
+      <td><div class="sk sk-linea corta"></div></td>
+      <td><div class="sk sk-linea corta"></div></td>
+      <td><div class="sk sk-linea corta"></div></td>
+      <td></td>
+    </tr>`).join('');
+}
+
 /* Carga los datos y pinta la interfaz (tras iniciar sesión, en modo nube) */
 async function cargarApp() {
+  // Pinta al instante con la copia local; si aún no existe, muestra el esqueleto
+  let hayCache = false;
+  if (sb) {
+    try {
+      const cache = await aplicarPendientes(await idbAll('miembros'));
+      if (cache.length) { MEMBERS = ordenarMembers(cache); hayCache = true; }
+    } catch {}
+    if (hayCache) { renderDashboard(); renderMembersTable(); }
+    else mostrarSkeleton();
+  }
   try {
-    await refreshMembers();
+    // Primero llegan los datos sin fotos (rápido) y se pinta; las fotos después
+    await refreshMembers(() => { renderDashboard(); renderTab(ACTIVE_TAB); });
   } catch (err) {
     toast('No se pudo cargar la base de datos: ' + err.message, 'err', 7000);
   }
   await importSeeds();
+  renderMembersTable();
   renderDashboard();
   updateModeloPicker();
   // Desplegables con el estilo del sistema

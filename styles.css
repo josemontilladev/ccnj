@@ -1149,6 +1149,23 @@ svg.lucide {
 }
 .ajustes-avanzado summary:hover { color: var(--azul); }
 
+/* ---- Esqueleto de carga (mientras bajan los datos de la nube) ---- */
+.sk {
+  background: linear-gradient(90deg, #e8ecf3 25%, #f5f7fb 50%, #e8ecf3 75%);
+  background-size: 200% 100%;
+  animation: sk-brillo 1.2s linear infinite;
+  border-radius: 6px;
+  color: transparent !important;
+}
+@keyframes sk-brillo {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.avatar.sk { border-radius: 50%; }
+.sk-linea { height: 12px; width: 70%; margin: 5px 0; max-width: 160px; }
+.sk-linea.corta { width: 45%; max-width: 90px; }
+.sk-num { display: inline-block; width: 40px; height: 26px; vertical-align: middle; }
+
 /* ---- Modal exportar lista ---- */
 .lista-hint {
   color: var(--gris);

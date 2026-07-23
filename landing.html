@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Sistema de Membresía — Confraternidad Cristiana Nueva Jerusalén</title>
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=Merriweather:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --azul: #005FB2;
+    --azul-oscuro: #003e75;
+    --azul-noche: #0b2440;
+    --verde: #079832;
+    --amarillo: #feeb01;
+    --tinta: #17233a;
+    --gris: #5b6b84;
+    --crema: #f7f9fc;
+    --blanco: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Poppins', sans-serif;
+    color: var(--tinta);
+    background: var(--blanco);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Franja tricolor superior — la firma del carnet */
+  .tricolor { display: flex; height: 6px; }
+  .tricolor i { flex: 1; }
+  .tricolor .az { background: var(--azul); }
+  .tricolor .ve { background: var(--verde); }
+  .tricolor .am { background: var(--amarillo); }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* ============ CABECERA ============ */
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 0;
+  }
+  .marca { display: flex; align-items: center; gap: 12px; }
+  .marca img { height: 44px; }
+  .marca div { line-height: 1.25; }
+  .marca b { font-size: 15px; display: block; }
+  .marca span { font-size: 12px; color: var(--gris); }
+  .btn {
+    display: inline-block;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600; font-size: 15px;
+    text-decoration: none;
+    padding: 12px 26px;
+    border-radius: 999px;
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-azul {
+    background: var(--azul); color: #fff;
+    box-shadow: 0 6px 18px rgba(0, 95, 178, .35);
+  }
+  .btn-azul:hover { box-shadow: 0 10px 26px rgba(0, 95, 178, .45); }
+  .btn-borde { border: 2px solid var(--azul); color: var(--azul); }
+
+  /* ============ HERO ============ */
+  .hero {
+    position: relative;
+    padding: 64px 0 96px;
+    background:
+      radial-gradient(720px 420px at 85% 10%, rgba(0, 95, 178, .08), transparent 65%),
+      radial-gradient(520px 380px at 5% 90%, rgba(7, 152, 50, .07), transparent 60%);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.15fr .85fr;
+    gap: 48px;
+    align-items: center;
+  }
+  .lema {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(0, 95, 178, .08);
+    color: var(--azul);
+    font-size: 13px; font-weight: 600;
+    padding: 6px 14px; border-radius: 999px;
+    margin-bottom: 20px;
+  }
+  .lema::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--verde); }
+  h1 {
+    font-size: clamp(34px, 5vw, 52px);
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -.5px;
+  }
+  h1 em {
+    font-style: normal;
+    color: var(--azul);
+    position: relative;
+    white-space: nowrap;
+  }
+  h1 em::after {
+    content: '';
+    position: absolute; left: 0; right: 0; bottom: 4px;
+    height: 10px;
+    background: var(--amarillo);
+    z-index: -1;
+    border-radius: 3px;
+  }
+  .hero p.baja {
+    font-family: 'Merriweather', serif;
+    font-weight: 300;
+    font-size: 17px;
+    color: var(--gris);
+    margin: 22px 0 32px;
+    max-width: 46ch;
+  }
+  .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* Carnet dibujado en CSS */
+  .escena { perspective: 1100px; display: flex; justify-content: center; }
+  .carnet {
+    width: 250px; height: 396px;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 30px 70px rgba(11, 36, 64, .28), 0 4px 14px rgba(11, 36, 64, .12);
+    display: flex;
+    overflow: hidden;
+    transform: rotate3d(1, -1, 0, 14deg);
+    animation: flotar 5.5s ease-in-out infinite;
+  }
+  @keyframes flotar {
+    0%, 100% { transform: rotate3d(1, -1, 0, 14deg) translateY(0); }
+    50% { transform: rotate3d(1, -1, 0, 10deg) translateY(-14px); }
+  }
+  .carnet .lat {
+    width: 34px; flex-shrink: 0;
+    background: var(--azul);
+    border-right: 4px solid var(--amarillo);
+    position: relative;
+  }
+  .carnet .lat span {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    color: #fff; font-weight: 800; font-size: 11px;
+    letter-spacing: 3px; white-space: nowrap;
+  }
+  .carnet .cuerpo { flex: 1; padding: 16px 12px; text-align: center; }
+  .carnet .cuerpo img.logo { width: 110px; margin: 2px auto 10px; display: block; }
+  .carnet .foto {
+    width: 96px; height: 112px;
+    margin: 0 auto 12px;
+    border: 3px solid var(--verde);
+    border-radius: 10px;
+    background: linear-gradient(160deg, #dbe7f5, #eef3fa 60%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .carnet .foto svg { width: 54px; height: 54px; fill: #a9bdd8; }
+  .carnet .nom { font-weight: 800; font-size: 14px; }
+  .carnet .ci { color: var(--azul); font-weight: 700; font-size: 12px; margin: 2px 0 10px; }
+  .carnet .chip {
+    display: inline-block;
+    background: var(--azul); color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 4px 14px; border-radius: 999px;
+  }
+  .carnet .qr {
+    width: 44px; height: 44px; margin: 12px auto 0;
+    background:
+      repeating-linear-gradient(0deg, var(--tinta) 0 3px, transparent 3px 6px),
+      repeating-linear-gradient(90deg, var(--tinta) 0 3px, #fff 3px 6px);
+    border-radius: 4px;
+    opacity: .8;
+  }
+
+  /* ============ CIFRAS ============ */
+  .cifras {
+    background: var(--azul-noche);
+    color: #fff;
+    padding: 40px 0;
+  }
+  .cifras .wrap {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    text-align: center;
+  }
+  .cifra b { font-size: 30px; font-weight: 800; display: block; color: var(--amarillo); }
+  .cifra span { font-size: 13px; color: #b9c9de; }
+
+  /* ============ SECCIONES ============ */
+  section.bloque { padding: 88px 0; }
+  section.bloque.crema { background: var(--crema); }
+  .titulo-sec { text-align: center; max-width: 620px; margin: 0 auto 56px; }
+  .titulo-sec .mini {
+    color: var(--verde); font-weight: 700; font-size: 13px;
+    text-transform: uppercase; letter-spacing: 2px;
+  }
+  .titulo-sec h2 { font-size: clamp(26px, 3.6vw, 36px); font-weight: 800; margin: 8px 0 12px; letter-spacing: -.4px; }
+  .titulo-sec p { color: var(--gris); font-family: 'Merriweather', serif; font-weight: 300; font-size: 15.5px; }
+
+  .tarjetas {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
+  }
+  .tarjeta {
+    background: #fff;
+    border: 1px solid #e4eaf3;
+    border-radius: 18px;
+    padding: 28px 24px;
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .tarjeta:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 40px rgba(11, 36, 64, .1);
+  }
+  .tarjeta .ico {
+    width: 48px; height: 48px;
+    border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+    font-size: 22px;
+  }
+  .ico.a { background: rgba(0, 95, 178, .1); }
+  .ico.v { background: rgba(7, 152, 50, .12); }
+  .ico.m { background: rgba(254, 235, 1, .35); }
+  .tarjeta h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .tarjeta p { font-size: 14px; color: var(--gris); }
+
+  /* ============ PASOS ============ */
+  .pasos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; counter-reset: paso; }
+  .paso {
+    position: relative;
+    background: #fff;
+    border-radius: 18px;
+    padding: 34px 26px 28px;
+    border: 1px solid #e4eaf3;
+  }
+  .paso::before {
+    counter-increment: paso;
+    content: counter(paso);
+    position: absolute; top: -20px; left: 24px;
+    width: 40px; height: 40px;
+    background: var(--azul); color: #fff;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 17px;
+    box-shadow: 0 6px 14px rgba(0, 95, 178, .3);
+  }
+  .paso:nth-child(2)::before { background: var(--verde); box-shadow: 0 6px 14px rgba(7, 152, 50, .3); }
+  .paso:nth-child(3)::before { background: var(--azul-oscuro); }
+  .paso h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .paso p { font-size: 14px; color: var(--gris); }
+
+  /* ============ CTA FINAL ============ */
+  .final {
+    background: linear-gradient(150deg, var(--azul) 0%, var(--azul-oscuro) 70%);
+    color: #fff;
+    text-align: center;
+    padding: 84px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .final::before, .final::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+  }
+  .final::before {
+    width: 340px; height: 340px;
+    border: 40px solid rgba(255, 255, 255, .05);
+    top: -140px; right: -100px;
+  }
+  .final::after {
+    width: 240px; height: 240px;
+    border: 30px solid rgba(254, 235, 1, .12);
+    bottom: -110px; left: -70px;
+  }
+  .final h2 { font-size: clamp(26px, 3.6vw, 38px); font-weight: 800; letter-spacing: -.4px; }
+  .final p {
+    font-family: 'Merriweather', serif; font-weight: 300;
+    color: #cfe0f2; margin: 14px auto 34px; max-width: 52ch;
+  }
+  .btn-amarillo {
+    background: var(--amarillo); color: var(--tinta);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  }
+
+  /* ============ PIE ============ */
+  footer {
+    background: var(--azul-noche);
+    color: #93a8c2;
+    font-size: 13px;
+    padding: 30px 0;
+  }
+  footer .wrap { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  footer b { color: #fff; font-weight: 600; }
+
+  /* Aparición al hacer scroll */
+  .rev { opacity: 0; transform: translateY(26px); transition: opacity .6s ease, transform .6s ease; }
+  .rev.visto { opacity: 1; transform: none; }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 880px) {
+    .hero { padding: 40px 0 70px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 52px; text-align: center; }
+    .hero p.baja { margin-inline: auto; }
+    .hero-cta { justify-content: center; }
+    .cifras .wrap { grid-template-columns: repeat(2, 1fr); }
+    .tarjetas, .pasos { grid-template-columns: 1fr; }
+    .paso { margin-top: 14px; }
+    header.top { flex-direction: column; gap: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="tricolor"><i class="az"></i><i class="ve"></i><i class="am"></i></div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="marca">
+      <img src="logo.png" alt="Logo Confraternidad Cristiana Nueva Jerusalén">
+      <div>
+        <b>Confraternidad Cristiana Nueva Jerusalén</b>
+        <span>¡Exaltando el nombre de Jesucristo!</span>
+      </div>
+    </div>
+    <a class="btn btn-azul" href="./">Entrar a la aplicación</a>
+  </header>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="lema">Sistema de Membresía · CCNJ</span>
+      <h1>La membresía de la iglesia, <em>ordenada y al día</em></h1>
+      <p class="baja">
+        Una aplicación hecha a la medida de nuestra congregación: registra a los
+        miembros desde las planillas de papel, guarda todo seguro en la nube y
+        genera los carnets de membresía listos para imprimir o enviar por WhatsApp.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-azul" href="./">Comenzar ahora</a>
+        <a class="btn btn-borde" href="#como">¿Cómo funciona?</a>
+      </div>
+    </div>
+    <div class="escena">
+      <div class="carnet" aria-hidden="true">
+        <div class="lat"><span>MEMBRESÍA 2026</span></div>
+        <div class="cuerpo">
+          <img class="logo" src="logo.png" alt="">
+          <div class="foto">
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+          </div>
+          <div class="nom">Nombre del Miembro</div>
+          <div class="ci">C.I. 00.000.000</div>
+          <span class="chip">Miembro Activo</span>
+          <div class="qr"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CIFRAS -->
+<div class="cifras">
+  <div class="wrap">
+    <div class="cifra rev"><b>1 foto</b><span>basta para registrar una planilla</span></div>
+    <div class="cifra rev"><b>4</b><span>modelos de carnet para elegir</span></div>
+    <div class="cifra rev"><b>9</b><span>carnets por hoja al imprimir</span></div>
+    <div class="cifra rev"><b>100%</b><span>funciona aun sin internet</span></div>
+  </div>
+</div>
+
+<!-- QUÉ HACE -->
+<section class="bloque" id="que-hace">
+  <div class="wrap">
+    <div class="titulo-sec rev">
+      <div class="mini">¿Qué hace esta aplicación?</div>
+      <h2>Todo lo de la membresía, en un solo lugar</h2>
+      <p>Pensada para que cualquier persona del equipo la use sin complicaciones,
+         desde el teléfono, la tablet o la computadora.</p>
+    </div>
+    <div class="tarjetas">
+      <div class="tarjeta rev">
+        <div class="ico a">📸</div>
+        <h3>Lee las planillas por ti</h3>
+        <p>Tómale una foto a la planilla llena a mano y el sistema lee los datos
+           automáticamente con inteligencia artificial: nombres, cédula, teléfono,
+           dirección y más. También recorta la foto del rostro.</p>
+      </div>
+      <div class="tarjeta rev">
+        <div class="ico v">🗂️</div>
+        <h3>Base de datos de miembros</h3>
+        <p>Busca por nombre, cédula o teléfono; filtra por función, cumpleaños o
+           sector; edita fichas y lleva el control de quién está activo y quién
+           debe renovar cada año.</p>
+      </div>
+      <div class="tarjeta rev">
+        <div class="ico m">🪪</div>
+        <h3>Carnets con código QR</h3>
+        <p>Genera el carnet de membresía de cada persona con su foto y un QR de
+           verificación. Imprímelos 9 por hoja, descárgalos en PNG o envíalos
+           directo por WhatsApp.</p>
+      </div>
+      <div class="tarjeta rev">
+        <div class="ico v">📄</div>
+        <h3>Listas y reportes</h3>
+        <p>Exporta la lista básica de miembros (nombre, cédula y teléfono) en
+           texto, Word o PDF para compartirla rápido, o descarga el Excel completo
+           con todos los datos.</p>
+      </div>
+      <div class="tarjeta rev">
+        <div class="ico a">📶</div>
+        <h3>Funciona sin internet</h3>
+        <p>Si se va la conexión, la app sigue funcionando con la copia local y
+           sincroniza los cambios automáticamente cuando vuelve el internet.
+           También se instala como aplicación en el teléfono.</p>
+      </div>
+      <div class="tarjeta rev">
+        <div class="ico m">🔒</div>
+        <h3>Segura y privada</h3>
+        <p>Solo entra el equipo autorizado con su usuario y contraseña, y las
+           cuentas nuevas requieren el código de invitación de la iglesia. Los
+           datos viven protegidos en la nube.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CÓMO FUNCIONA -->
+<section class="bloque crema" id="como">
+  <div class="wrap">
+    <div class="titulo-sec rev">
+      <div class="mini">Así de simple</div>
+      <h2>De la planilla de papel al carnet en tres pasos</h2>
+    </div>
+    <div class="pasos">
+      <div class="paso rev">
+        <h3>Fotografía la planilla</h3>
+        <p>La persona llena la planilla de membresía como siempre. Tú solo le tomas
+           una foto con el teléfono y la subes a la aplicación (varias a la vez si quieres).</p>
+      </div>
+      <div class="paso rev">
+        <h3>Revisa los datos</h3>
+        <p>El sistema lee la letra a mano y llena la ficha del miembro solo.
+           Tú revisas que todo esté bien, ajustas lo que haga falta y guardas.</p>
+      </div>
+      <div class="paso rev">
+        <h3>Genera el carnet</h3>
+        <p>Con un clic tienes el carnet con foto y QR: imprímelo, descárgalo
+           como imagen o envíaselo al miembro por WhatsApp.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA FINAL -->
+<section class="final">
+  <h2>Una herramienta al servicio de la casa de Dios</h2>
+  <p>El acceso es solo para el equipo autorizado de la Confraternidad.
+     Si formas parte del equipo, entra con tu usuario o pide el código de
+     invitación al administrador.</p>
+  <a class="btn btn-amarillo" href="./">Entrar a la aplicación</a>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div><b>Confraternidad Cristiana "Nueva Jerusalén"</b> · RIF J-310653135</div>
+    <div>Auditorio Canaima frente a la plaza Bolívar. Ciudad Ojeda, Estado Zulia — Venezuela</div>
+  </div>
+</footer>
+
+<script>
+  // Aparición suave de las secciones al hacer scroll
+  const obs = new IntersectionObserver((entradas) => {
+    entradas.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visto'); obs.unobserve(e.target); } });
+  }, { threshold: .15 });
+  document.querySelectorAll('.rev').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
