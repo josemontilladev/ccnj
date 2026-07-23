@@ -1018,13 +1018,13 @@ svg.lucide {
   flex-shrink: 0;
   background: #005FB2;
   border-right: .8mm solid #feeb01;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
 }
 .carnet.m-franja .c-lat span {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
+  /* Sin writing-mode: html2canvas no lo soporta y el PNG salía con el texto al revés */
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
   font-family: 'Poppins', sans-serif;
   font-weight: 800;
   color: #fff;
@@ -1148,6 +1148,23 @@ svg.lucide {
   user-select: none;
 }
 .ajustes-avanzado summary:hover { color: var(--azul); }
+
+/* ---- Modal exportar lista ---- */
+.lista-hint {
+  color: var(--gris);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.lista-opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.lista-opts .btn { justify-content: center; }
+@media (max-width: 480px) {
+  .lista-opts { grid-template-columns: 1fr; }
+}
 
 /* ================= IMPRESIÓN ================= */
 #printArea { display: none; }

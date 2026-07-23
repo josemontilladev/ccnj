@@ -111,7 +111,10 @@
           <h1>Registrar miembros</h1>
           <p class="subtitle">Sube las fotos de las planillas y el sistema leerá los datos automáticamente</p>
         </div>
-        <button class="btn btn-ghost" id="btnManual"><i data-lucide="pen-line"></i> Llenar manualmente</button>
+        <div class="head-actions">
+          <button class="btn btn-ghost" id="btnPlanillaBlanco"><i data-lucide="printer"></i> Planilla en blanco</button>
+          <button class="btn btn-ghost" id="btnManual"><i data-lucide="pen-line"></i> Llenar manualmente</button>
+        </div>
       </header>
 
       <div id="apiKeyWarning" class="alert alert-warn hidden">
@@ -236,6 +239,7 @@
           <button class="btn btn-ghost" id="btnImportJSON"><i data-lucide="archive-restore"></i> Restaurar</button>
           <input type="file" id="importFileInput" accept=".json" hidden>
           <button class="btn btn-ghost" id="btnExportCSV"><i data-lucide="file-spreadsheet"></i> Excel (CSV)</button>
+          <button class="btn btn-ghost" id="btnExportLista"><i data-lucide="clipboard-list"></i> Lista</button>
           <button class="btn btn-primary" data-goto="registrar"><i data-lucide="user-plus"></i> Registrar</button>
         </div>
       </header>
@@ -386,6 +390,25 @@
     </div>
     <div class="modal-foot">
       <button class="btn btn-primary" id="btnSaveSettings"><i data-lucide="check"></i> Guardar ajustes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL EXPORTAR LISTA ===== -->
+<div class="modal-backdrop hidden" id="listaModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Exportar lista</h2>
+      <button class="modal-close" data-close="listaModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="lista-hint">Lista básica (nombre, cédula y teléfono) de <b id="listaCount"></b>, en orden alfabético. Se respetan la búsqueda y los filtros activos.</p>
+      <div class="lista-opts">
+        <button class="btn btn-ghost" id="btnListaCopiar"><i data-lucide="copy"></i> Copiar texto</button>
+        <button class="btn btn-ghost" id="btnListaTXT"><i data-lucide="file-text"></i> Descargar TXT</button>
+        <button class="btn btn-ghost" id="btnListaWord"><i data-lucide="file-type"></i> Word (.doc)</button>
+        <button class="btn btn-primary" id="btnListaPDF"><i data-lucide="printer"></i> Imprimir / PDF</button>
+      </div>
     </div>
   </div>
 </div>
