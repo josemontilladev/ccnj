@@ -2,7 +2,7 @@
    Cachea la interfaz (HTML/CSS/JS/librerías); nunca cachea los datos
    de Supabase ni la lectura de planillas (/api/). */
 
-const CACHE = 'ccnj-v1';
+const CACHE = 'ccnj-v2';
 const APP_SHELL = [
   './',
   'index.html',

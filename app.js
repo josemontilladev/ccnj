@@ -1527,6 +1527,181 @@ $('#btnExportCSV').addEventListener('click', () => {
   toast('CSV descargado');
 });
 
+/* --- Lista básica (nombre, cédula y teléfono) --- */
+function listaBasica() {
+  const q = $('#searchInput').value.trim();
+  const filtro = $('#filterEstado').value;
+  return MEMBERS
+    .filter(m => memberMatches(m, q) && estadoFilterMatch(m, filtro) && matchAvanzado(m))
+    .slice()
+    .sort((a, b) => (a.nombres || '').localeCompare(b.nombres || '', 'es'));
+}
+
+function listaTexto(rows) {
+  const lineas = [
+    `MEMBRESÍA ${settings.anio} — Confraternidad Cristiana Nueva Jerusalén`,
+    `${rows.length} miembro${rows.length === 1 ? '' : 's'}`,
+    ''
+  ];
+  rows.forEach((m, i) => {
+    lineas.push(`${i + 1}. ${m.nombres || 'Sin nombre'} — C.I. ${m.ci || '—'} — Tel. ${m.telefono || '—'}`);
+  });
+  return lineas.join('\n');
+}
+
+function listaTablaHTML(rows) {
+  const filas = rows.map((m, i) => `
+    <tr>
+      <td class="num">${i + 1}</td>
+      <td>${esc(m.nombres || '')}</td>
+      <td>${esc(m.ci || '—')}</td>
+      <td>${esc(m.telefono || '—')}</td>
+    </tr>`).join('');
+  return `
+    <h1>Confraternidad Cristiana Nueva Jerusalén</h1>
+    <h2>Lista de miembros — Membresía ${esc(settings.anio)}</h2>
+    <p class="total">${rows.length} miembro${rows.length === 1 ? '' : 's'}</p>
+    <table>
+      <thead><tr><th>N°</th><th>Nombres y apellidos</th><th>C.I.</th><th>Teléfono</th></tr></thead>
+      <tbody>${filas}</tbody>
+    </table>`;
+}
+
+const LISTA_DOC_CSS = `
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1c2333; margin: 24px; }
+  h1 { font-size: 17px; color: #005FB2; margin: 0 0 2px; }
+  h2 { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
+  .total { font-size: 12px; color: #555; margin: 0 0 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { border: 1px solid #b9c2d0; padding: 5px 8px; text-align: left; }
+  th { background: #005FB2; color: #fff; }
+  tr:nth-child(even) td { background: #f2f6fb; }
+  td.num { width: 34px; text-align: center; color: #555; }`;
+
+$('#btnExportLista').addEventListener('click', () => {
+  const n = listaBasica().length;
+  if (!n) { toast('No hay miembros que exportar', 'err'); return; }
+  $('#listaCount').textContent = `${n} miembro${n === 1 ? '' : 's'}`;
+  $('#listaModal').classList.remove('hidden');
+});
+
+$('#btnListaCopiar').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(listaTexto(listaBasica()));
+    $('#listaModal').classList.add('hidden');
+    toast('Lista copiada: pégala en WhatsApp o donde la necesites');
+  } catch {
+    toast('No se pudo copiar al portapapeles; descarga el TXT', 'err');
+  }
+});
+
+$('#btnListaTXT').addEventListener('click', () => {
+  downloadFile(`lista_membresia_${settings.anio}.txt`, listaTexto(listaBasica()), 'text/plain;charset=utf-8');
+  $('#listaModal').classList.add('hidden');
+  toast('Lista TXT descargada');
+});
+
+$('#btnListaWord').addEventListener('click', () => {
+  // Documento HTML con extensión .doc: Word lo abre con formato sin necesitar librerías
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
+    <head><meta charset="utf-8"><title>Lista de miembros</title><style>${LISTA_DOC_CSS}</style></head>
+    <body>${listaTablaHTML(listaBasica())}</body></html>`;
+  downloadFile(`lista_membresia_${settings.anio}.doc`, '﻿' + html, 'application/msword');
+  $('#listaModal').classList.add('hidden');
+  toast('Lista Word descargada');
+});
+
+$('#btnListaPDF').addEventListener('click', () => {
+  const win = window.open('', '_blank');
+  if (!win) { toast('El navegador bloqueó la ventana de impresión', 'err'); return; }
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Lista de miembros</title>
+    <style>${LISTA_DOC_CSS} @page { margin: 14mm; } thead { display: table-header-group; } tr { page-break-inside: avoid; }</style>
+    </head><body>${listaTablaHTML(listaBasica())}
+    <script>window.onload = () => setTimeout(() => window.print(), 150);<\/script></body></html>`);
+  win.document.close();
+  $('#listaModal').classList.add('hidden');
+});
+
+/* --- Planilla de membresía en blanco (para imprimir y llenar a mano) --- */
+function planillaBlancoHTML() {
+  const logo = (window.ASSETS && window.ASSETS.logo) || 'logo.png';
+  const linea = (label, clase = '') => `<div class="campo ${clase}"><b>${label}</b><span class="raya"></span></div>`;
+  const renglon = () => '<div class="renglon"></div>';
+  return `<!doctype html><html><head><meta charset="utf-8"><base href="${location.href}">
+  <title>Planilla de membresía ${esc(settings.anio)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; margin: 0; padding: 10mm 14mm; font-size: 12.5px; line-height: 1.35; }
+    .cab { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4mm; }
+    .cab img { height: 15mm; }
+    .cab-der { text-align: right; }
+    .cab-der b { font-size: 13.5px; }
+    .cab-der .rif { font-size: 11px; color: #333; }
+    .tit-row { display: flex; justify-content: space-between; align-items: flex-start; }
+    h1 { flex: 1; text-align: center; font-size: 16px; letter-spacing: 1px; margin: 2mm 0 4mm; }
+    .foto { width: 25mm; height: 30mm; border: 1.5px solid #111; display: flex; align-items: center; justify-content: center; font-size: 10px; letter-spacing: 1px; color: #333; }
+    .campo { display: flex; align-items: flex-end; gap: 4px; margin: 2.2mm 0; }
+    .campo b { white-space: nowrap; }
+    .raya { flex: 1; border-bottom: 1px solid #111; min-height: 4.2mm; }
+    .renglon { border-bottom: 1px solid #111; height: 5.5mm; }
+    .seccion { font-weight: 700; margin: 4mm 0 1mm; }
+    .pregunta { font-weight: 700; margin: 3.5mm 0 1mm; }
+    .corta .raya { flex: 0 0 30mm; }
+    .dos-col { display: flex; gap: 8mm; }
+    .dos-col .campo { flex: 1; }
+    @page { size: letter; margin: 8mm; }
+    @media print { body { padding: 4mm 8mm; } }
+  </style></head><body>
+    <div class="cab">
+      <img src="${logo}" alt="">
+      <div class="cab-der">
+        <b>Confraternidad Cristiana "Nueva Jerusalén"</b>
+        <div class="rif">RIF ${esc(settings.rif)}</div>
+      </div>
+    </div>
+    <div class="tit-row">
+      <h1>MEMBRESÍA ${esc(settings.anio)}</h1>
+      <div class="foto">FOTO</div>
+    </div>
+    ${linea('Nombres y apellidos:')}
+    <div class="dos-col">
+      ${linea('C.I:')}
+      ${linea('Fecha de Nacimiento:')}
+    </div>
+    ${linea('Lugar de Nacimiento:')}
+    ${linea('Estado Civil:', 'corta')}
+    ${linea('Correo electrónico:')}
+    ${linea('Teléfono:')}
+    ${linea('Dirección:')}
+    ${linea('Ocupación Actual:')}
+    ${linea('Profesión o grado de instrucción:')}
+    <div class="seccion">Sobre su familia:</div>
+    ${linea('Esposo(a):')}
+    ${linea('Hijos(as):')}
+    ${linea('Padres(as):')}
+    ${linea('En caso de ser soltero ¿Vive usted con sus padres?:', 'corta')}
+    ${linea('En caso de ser casado (a) ¿Vive con su esposo (a) y sus hijos?:', 'corta')}
+    ${linea('Explique:')}
+    <div class="seccion">Sobre su fe:</div>
+    <div class="pregunta">¿Cuándo recibió al Señor Jesucristo en su vida?:</div>
+    ${renglon()}${renglon()}
+    <div class="pregunta">¿Cuándo y dónde se bautizó?:</div>
+    ${renglon()}${renglon()}
+    <div class="pregunta">¿Qué tiempo tiene en la Confraternidad Cristiana Nueva Jerusalén?</div>
+    ${renglon()}
+    <div class="pregunta">¿Ejerce usted alguna función en la iglesia y desde cuándo?</div>
+    ${renglon()}${renglon()}
+    <script>window.onload = () => setTimeout(() => window.print(), 200);<\/script>
+  </body></html>`;
+}
+
+$('#btnPlanillaBlanco').addEventListener('click', () => {
+  const win = window.open('', '_blank');
+  if (!win) { toast('El navegador bloqueó la ventana de impresión', 'err'); return; }
+  win.document.write(planillaBlancoHTML());
+  win.document.close();
+});
+
 /* ============================================================
    CARNETS — vista previa, PNG y PDF masivo
    ============================================================ */
