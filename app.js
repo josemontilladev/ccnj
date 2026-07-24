@@ -1319,10 +1319,27 @@ $('#btnLimpiarFiltros').addEventListener('click', () => {
   renderMembersTable();
 });
 
+/* Orden elegido en el selector de la tabla */
+function ordenComparador() {
+  const v = $('#sortOrden').value;
+  if (v === 'za') return (a, b) => (b.nombres || '').localeCompare(a.nombres || '', 'es');
+  if (v === 'recientes') return (a, b) => (b.fechaRegistro || '').localeCompare(a.fechaRegistro || '');
+  return (a, b) => (a.nombres || '').localeCompare(b.nombres || '', 'es'); // A → Z
+}
+
+/* Lista tal como se ve en la tabla: búsqueda + filtros + orden */
+function miembrosVisibles() {
+  const q = $('#searchInput').value.trim();
+  const filtro = $('#filterEstado').value;
+  return MEMBERS
+    .filter(m => memberMatches(m, q) && estadoFilterMatch(m, filtro) && matchAvanzado(m))
+    .sort(ordenComparador());
+}
+
 function renderMembersTable() {
   const q = $('#searchInput').value.trim();
   const filtro = $('#filterEstado').value;
-  const rows = MEMBERS.filter(m => memberMatches(m, q) && estadoFilterMatch(m, filtro) && matchAvanzado(m));
+  const rows = miembrosVisibles();
   const tbody = $('#membersTbody');
   $('#btnFiltros').classList.toggle('filtros-activos', hayFiltrosActivos());
   $('#memberCount').textContent = (q || filtro !== 'todos' || hayFiltrosActivos())
@@ -1357,6 +1374,7 @@ function renderMembersTable() {
 
 $('#searchInput').addEventListener('input', renderMembersTable);
 $('#filterEstado').addEventListener('change', renderMembersTable);
+$('#sortOrden').addEventListener('change', renderMembersTable);
 
 $('#membersTbody').addEventListener('click', async (e) => {
   const row = e.target.closest('tr[data-id]');
@@ -1437,9 +1455,30 @@ function openViewModal(m) {
       </div>
       <div class="view-carnet">${carnetHTML(m)}</div>
     </div>`;
+  // Posición dentro de la lista visible (para revisar ficha por ficha)
+  const lista = miembrosVisibles();
+  const i = lista.findIndex(x => x.id === m.id);
+  $('#viewPos').textContent = i >= 0 ? `${i + 1} de ${lista.length}` : '';
   $('#viewModal').classList.remove('hidden');
   refreshIcons();
 }
+
+/* Pasar a la ficha anterior/siguiente sin cerrar el modal (también con ← →) */
+function navegarFicha(delta) {
+  const lista = miembrosVisibles();
+  if (!lista.length) return;
+  const i = lista.findIndex(x => x.id === viewingId);
+  const j = ((i < 0 ? 0 : i + delta) + lista.length) % lista.length;
+  openViewModal(lista[j]);
+}
+
+$('#btnViewPrev').addEventListener('click', () => navegarFicha(-1));
+$('#btnViewNext').addEventListener('click', () => navegarFicha(1));
+document.addEventListener('keydown', (e) => {
+  if ($('#viewModal').classList.contains('hidden')) return;
+  if (e.key === 'ArrowLeft') navegarFicha(-1);
+  if (e.key === 'ArrowRight') navegarFicha(1);
+});
 
 $('#btnViewEdit').addEventListener('click', () => {
   const m = MEMBERS.find(x => x.id === viewingId);
@@ -1561,12 +1600,7 @@ $('#btnExportCSV').addEventListener('click', () => {
 
 /* --- Lista básica (nombre, cédula y teléfono) --- */
 function listaBasica() {
-  const q = $('#searchInput').value.trim();
-  const filtro = $('#filterEstado').value;
-  return MEMBERS
-    .filter(m => memberMatches(m, q) && estadoFilterMatch(m, filtro) && matchAvanzado(m))
-    .slice()
-    .sort((a, b) => (a.nombres || '').localeCompare(b.nombres || '', 'es'));
+  return miembrosVisibles(); // mismo orden y filtros que muestra la tabla
 }
 
 function listaTexto(rows) {
@@ -2328,7 +2362,7 @@ async function cargarApp() {
   renderDashboard();
   updateModeloPicker();
   // Desplegables con el estilo del sistema
-  ['#filterEstado', '#fFoto', '#fMesCumple', '#fFuncion', '#fAnioRegistro', '#fAnioConversion']
+  ['#filterEstado', '#sortOrden', '#fFoto', '#fMesCumple', '#fFuncion', '#fAnioRegistro', '#fAnioConversion']
     .forEach(s => customizarSelect($(s)));
   customizarSelect($('#editForm').elements.estado);
   $('#checkQR').checked = settings.carnetQR !== false;
