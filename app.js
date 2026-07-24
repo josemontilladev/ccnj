@@ -15,6 +15,8 @@ const DEFAULTS = {
   groqKey: '',       // Groq (no disponible desde Venezuela sin VPN)
   modeloCarnet: 'franja',
   carnetQR: true,
+  carnetLayout: null, // orden y elementos visibles del carnet (null = diseño original)
+  carnetTexto: '',    // contenido del elemento "Texto libre"
   anio: '2026',
   sede: 'Auditorio Canaima frente a la plaza Bolívar. Ciudad Ojeda, Estado Zulia - Venezuela',
   rif: 'J-310653135'
@@ -52,6 +54,22 @@ function esc(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
+}
+
+/* Formato venezolano de cédula: 24.266.163 */
+function fmtCI(ci) {
+  const d = String(ci || '').replace(/\D/g, '');
+  if (!d) return String(ci || '').trim();
+  return d.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/* Formato de teléfono: 0412-1234567 */
+function fmtTel(t) {
+  let d = String(t || '').replace(/\D/g, '');
+  if (d.length === 12 && d.startsWith('58')) d = '0' + d.slice(2); // 58412… → 0412…
+  if (d.length === 10 && !d.startsWith('0')) d = '0' + d;          // le faltaba el 0
+  if (d.length === 11) return d.slice(0, 4) + '-' + d.slice(4);
+  return String(t || '').trim(); // formato no reconocido: se deja tal cual
 }
 
 /* Normaliza texto para búsquedas: minúsculas y sin acentos */
@@ -424,7 +442,7 @@ function renderDashboard() {
       <div class="avatar">${m.foto ? `<img src="${m.foto}" alt="">` : esc(initials(m.nombres))}</div>
       <div>
         <div class="recent-name">${esc(m.nombres)}</div>
-        <div class="recent-sub">${esc(m.funcion || 'Miembro')} ${m.ci ? '· C.I. ' + esc(m.ci) : ''}</div>
+        <div class="recent-sub">${esc(m.funcion || 'Miembro')} ${m.ci ? '· C.I. ' + esc(fmtCI(m.ci)) : ''}</div>
       </div>
       <div class="recent-date">${fmtDate(m.fechaRegistro)}</div>
     </div>
@@ -543,6 +561,8 @@ function cleanExtracted(parsed) {
     const v = parsed[k];
     out[k] = (typeof v === 'string') ? v : (v == null ? '' : String(v));
   }
+  out.ci = fmtCI(out.ci);
+  out.telefono = fmtTel(out.telefono);
   return out;
 }
 
@@ -1173,7 +1193,12 @@ $('#btnCancelReview').addEventListener('click', () => {
 function memberMatches(m, q) {
   if (!q) return true;
   const hay = norm([m.nombres, m.ci, m.telefono, m.funcion, m.correo, m.direccion].join(' '));
-  return hay.includes(norm(q));
+  if (hay.includes(norm(q))) return true;
+  // Cédulas y teléfonos: busca también solo por dígitos (con o sin puntos/guiones)
+  const qd = q.replace(/\D/g, '');
+  return qd.length >= 3 && (
+    String(m.ci || '').replace(/\D/g, '').includes(qd) ||
+    String(m.telefono || '').replace(/\D/g, '').includes(qd));
 }
 
 function estadoFilterMatch(m, filtro) {
@@ -1350,8 +1375,8 @@ function renderMembersTable() {
     <tr data-id="${m.id}" class="${m.estado === 'Inactivo' ? 'row-inactivo' : ''}">
       <td><div class="avatar">${m.foto ? `<img src="${m.foto}" alt="">` : esc(initials(m.nombres))}</div></td>
       <td class="td-name">${esc(m.nombres)}</td>
-      <td>${esc(m.ci || '—')}</td>
-      <td>${esc(m.telefono || '—')}</td>
+      <td>${esc(fmtCI(m.ci) || '—')}</td>
+      <td>${esc(fmtTel(m.telefono) || '—')}</td>
       <td>${m.funcion ? `<span class="badge">${esc(m.funcion)}</span>` : '<span class="badge badge-empty">Miembro</span>'}</td>
       <td>
         ${m.estado === 'Inactivo'
@@ -1432,11 +1457,16 @@ function openViewModal(m) {
   const foto = m.foto
     ? `<img src="${m.foto}" alt="">`
     : `<span>${esc(initials(m.nombres))}</span>`;
-  const items = VIEW_FIELDS.map(([key, label]) => `
+  const items = VIEW_FIELDS.map(([key, label]) => {
+    let v = m[key] || '—';
+    if (key === 'ci') v = fmtCI(m.ci) || '—';
+    if (key === 'telefono') v = fmtTel(m.telefono) || '—';
+    return `
     <div class="detail-item">
       <span class="detail-label">${label}</span>
-      <span class="detail-value">${esc(m[key] || '—')}</span>
-    </div>`).join('');
+      <span class="detail-value">${esc(v)}</span>
+    </div>`;
+  }).join('');
   $('#viewBody').innerHTML = `
     <div class="view-layout">
       <div class="view-left">
@@ -1529,6 +1559,8 @@ $('#editForm').addEventListener('submit', async (e) => {
   if (!m) return;
   const form = e.target;
   FIELD_KEYS.forEach(k => { if (form.elements[k]) m[k] = form.elements[k].value.trim(); });
+  m.ci = fmtCI(m.ci);
+  m.telefono = fmtTel(m.telefono);
   m.estado = form.elements.estado.value;
   m.foto = editPhoto;
   await dbPut(m);
@@ -1591,7 +1623,9 @@ $('#btnExportCSV').addEventListener('click', () => {
   const BOM = '﻿'; // para que Excel abra bien los acentos
   const lines = [headers.map(q).join(';')];
   for (const m of MEMBERS) {
-    lines.push([...cols.map(c => q(m[c])), q(fmtDate(m.fechaRegistro))].join(';'));
+    lines.push([...cols.map(c =>
+      q(c === 'ci' ? fmtCI(m.ci) : c === 'telefono' ? fmtTel(m.telefono) : m[c])
+    ), q(fmtDate(m.fechaRegistro))].join(';'));
   }
   // BOM para que Excel abra bien los acentos
   downloadFile(`membresia_cfnj_${settings.anio}.csv`, BOM + lines.join('\r\n'), 'text/csv;charset=utf-8');
@@ -1610,7 +1644,7 @@ function listaTexto(rows) {
     ''
   ];
   rows.forEach((m, i) => {
-    lineas.push(`${i + 1}. ${m.nombres || 'Sin nombre'} — C.I. ${m.ci || '—'} — Tel. ${m.telefono || '—'}`);
+    lineas.push(`${i + 1}. ${m.nombres || 'Sin nombre'} — C.I. ${fmtCI(m.ci) || '—'} — Tel. ${fmtTel(m.telefono) || '—'}`);
   });
   return lineas.join('\n');
 }
@@ -1620,8 +1654,8 @@ function listaTablaHTML(rows) {
     <tr>
       <td class="num">${i + 1}</td>
       <td>${esc(m.nombres || '')}</td>
-      <td>${esc(m.ci || '—')}</td>
-      <td>${esc(m.telefono || '—')}</td>
+      <td>${esc(fmtCI(m.ci) || '—')}</td>
+      <td>${esc(fmtTel(m.telefono) || '—')}</td>
     </tr>`).join('');
   return `
     <h1>Confraternidad Cristiana Nueva Jerusalén</h1>
@@ -1805,7 +1839,7 @@ function carnetParts(m) {
     fotoHTML: m.foto
       ? `<img class="c-photo" src="${m.foto}" alt="">`
       : `<div class="c-photo placeholder">${esc(initials(m.nombres))}</div>`,
-    ciHTML: m.ci ? `<div class="c-ci">C.I. ${esc(m.ci)}</div>` : '',
+    ciHTML: m.ci ? `<div class="c-ci">C.I. ${esc(fmtCI(m.ci))}</div>` : '',
     funcion: esc(m.funcion || 'Miembro Activo'),
     qrHTML: qrUrl ? `<img class="c-qr" src="${qrUrl}" alt="">` : '',
     anio: esc(settings.anio),
@@ -1814,22 +1848,73 @@ function carnetParts(m) {
   };
 }
 
+/* ---------------- Elementos del carnet (editables) ----------------
+   El usuario puede quitar, reordenar o agregar elementos desde el
+   editor; el orden vive en settings.carnetLayout. La "sede" siempre
+   se dibuja en el pie del modelo (solo se puede mostrar/ocultar). */
+const CARNET_ELEM_DEFS = {
+  logo: 'Logo',
+  rif: 'RIF',
+  foto: 'Foto',
+  nombre: 'Nombre',
+  ci: 'Cédula',
+  funcion: 'Función / cargo',
+  qr: 'QR de verificación',
+  sede: 'Dirección de la sede (pie)',
+  telefono: 'Teléfono',
+  fechaNacimiento: 'Fecha de nacimiento',
+  correo: 'Correo',
+  texto: 'Texto libre'
+};
+const LAYOUT_DEFAULT = ['logo', 'rif', 'foto', 'nombre', 'ci', 'funcion', 'qr', 'sede'];
+
+function carnetLayout() {
+  const l = settings.carnetLayout;
+  return (Array.isArray(l) && l.length)
+    ? l.filter(k => CARNET_ELEM_DEFS[k])
+    : [...LAYOUT_DEFAULT];
+}
+const tieneElem = (k) => carnetLayout().includes(k);
+
+function elementoHTML(k, p, m, placaLogo) {
+  switch (k) {
+    case 'logo': return placaLogo
+      ? `<div class="c-placa"><img src="${p.logoSrc}" alt=""></div>`
+      : `<img class="c-logo" src="${p.logoSrc}" alt="">`;
+    case 'rif': return `<div class="c-rif">RIF ${p.rif}</div>`;
+    case 'foto': return p.fotoHTML;
+    case 'nombre': return `<div class="${p.nameClass}">${p.name}</div>`;
+    case 'ci': return p.ciHTML;
+    case 'funcion': return `<div class="c-funcion">${p.funcion}</div>`;
+    case 'qr': return p.qrHTML;
+    case 'telefono': return m.telefono ? `<div class="c-dato">${esc(fmtTel(m.telefono))}</div>` : '';
+    case 'fechaNacimiento': return m.fechaNacimiento ? `<div class="c-dato">Nac. ${esc(m.fechaNacimiento)}</div>` : '';
+    case 'correo': return m.correo ? `<div class="c-dato">${esc(m.correo)}</div>` : '';
+    case 'texto': return settings.carnetTexto ? `<div class="c-dato c-texto">${esc(settings.carnetTexto)}</div>` : '';
+    default: return '';
+  }
+}
+
+/* Contenido central del carnet según el diseño configurado */
+function stackHTML(p, m, excluir = [], placaLogo = false) {
+  return carnetLayout()
+    .filter(k => k !== 'sede' && !excluir.includes(k))
+    .map(k => elementoHTML(k, p, m, placaLogo))
+    .join('');
+}
+
+const TRI = '<div class="tri"><i class="t-az"></i><i class="t-ve"></i><i class="t-am"></i></div>';
+
 /* Modelo 1 — Clásico: blanco con franja tricolor y banda azul */
 function carnetClasico(m) {
   const p = carnetParts(m);
   return `
   <div class="carnet">
-    <div class="tri"><i class="t-az"></i><i class="t-ve"></i><i class="t-am"></i></div>
-    <img class="c-logo" src="${p.logoSrc}" alt="">
-    <div class="c-rif">RIF ${p.rif}</div>
-    ${p.fotoHTML}
-    <div class="${p.nameClass}">${p.name}</div>
-    ${p.ciHTML}
-    <div class="c-funcion">${p.funcion}</div>
-    ${p.qrHTML}
+    ${TRI}
+    ${stackHTML(p, m)}
     <div class="c-band">
       <div class="c-anio">MEMBRESÍA ${p.anio}</div>
-      <div class="c-sede">${p.sede}</div>
+      ${tieneElem('sede') ? `<div class="c-sede">${p.sede}</div>` : ''}
     </div>
   </div>`;
 }
@@ -1840,35 +1925,25 @@ function carnetAzul(m) {
   return `
   <div class="carnet m-azul">
     <div class="c-cab">
-      <div class="c-placa"><img src="${p.logoSrc}" alt=""></div>
+      ${tieneElem('logo') ? `<div class="c-placa"><img src="${p.logoSrc}" alt=""></div>` : ''}
       <div class="c-anio2">MEMBRESÍA ${p.anio}</div>
-      <div class="c-rif2">RIF ${p.rif}</div>
+      ${tieneElem('rif') ? `<div class="c-rif2">RIF ${p.rif}</div>` : ''}
     </div>
-    ${p.fotoHTML}
-    <div class="${p.nameClass}">${p.name}</div>
-    ${p.ciHTML}
-    <div class="c-funcion">${p.funcion}</div>
-    ${p.qrHTML}
-    <div class="c-pie">${p.sede}</div>
+    ${stackHTML(p, m, ['logo', 'rif'])}
+    ${tieneElem('sede') ? `<div class="c-pie">${p.sede}</div>` : ''}
     <div class="tri tri-bottom"><i class="t-az"></i><i class="t-ve"></i><i class="t-am"></i></div>
   </div>`;
 }
 
-/* Modelo 3 — Franja: banda lateral azul→verde con el año en vertical */
+/* Modelo 3 — Franja: banda lateral azul con el año en vertical */
 function carnetFranja(m) {
   const p = carnetParts(m);
   return `
   <div class="carnet m-franja">
     <div class="c-lat"><span>MEMBRESÍA ${p.anio}</span></div>
     <div class="c-cuerpo">
-      <img class="c-logo" src="${p.logoSrc}" alt="">
-      <div class="c-rif">RIF ${p.rif}</div>
-      ${p.fotoHTML}
-      <div class="${p.nameClass}">${p.name}</div>
-      ${p.ciHTML}
-      <div class="c-funcion">${p.funcion}</div>
-    ${p.qrHTML}
-      <div class="c-pie2">${p.sede}</div>
+      ${stackHTML(p, m)}
+      ${tieneElem('sede') ? `<div class="c-pie2">${p.sede}</div>` : ''}
     </div>
   </div>`;
 }
@@ -1878,17 +1953,52 @@ function carnetOscuro(m) {
   const p = carnetParts(m);
   return `
   <div class="carnet m-oscuro">
-    <div class="tri"><i class="t-az"></i><i class="t-ve"></i><i class="t-am"></i></div>
-    <div class="c-placa"><img src="${p.logoSrc}" alt=""></div>
-    <div class="c-rif">RIF ${p.rif}</div>
-    ${p.fotoHTML}
-    <div class="${p.nameClass}">${p.name}</div>
-    ${p.ciHTML}
-    <div class="c-funcion">${p.funcion}</div>
-    ${p.qrHTML}
+    ${TRI}
+    ${stackHTML(p, m, [], true)}
     <div class="c-band">
       <div class="c-anio">MEMBRESÍA ${p.anio}</div>
-      <div class="c-sede">${p.sede}</div>
+      ${tieneElem('sede') ? `<div class="c-sede">${p.sede}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+/* Modelo 5 — Verde: como el clásico pero con la banda en verde institucional */
+function carnetVerde(m) {
+  const p = carnetParts(m);
+  return `
+  <div class="carnet m-verde">
+    ${TRI}
+    ${stackHTML(p, m)}
+    <div class="c-band">
+      <div class="c-anio">MEMBRESÍA ${p.anio}</div>
+      ${tieneElem('sede') ? `<div class="c-sede">${p.sede}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+/* Modelo 6 — Blanco: minimalista, líneas finas y tipografía sobria */
+function carnetMinimal(m) {
+  const p = carnetParts(m);
+  return `
+  <div class="carnet m-minimal">
+    ${stackHTML(p, m)}
+    <div class="c-band">
+      <div class="c-anio">MEMBRESÍA ${p.anio}</div>
+      ${tieneElem('sede') ? `<div class="c-sede">${p.sede}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+/* Modelo 7 — Tricolor: encabezado diagonal con los tres colores */
+function carnetTricolor(m) {
+  const p = carnetParts(m);
+  return `
+  <div class="carnet m-tricolor">
+    <div class="c-diag"></div>
+    ${stackHTML(p, m)}
+    <div class="c-band">
+      <div class="c-anio">MEMBRESÍA ${p.anio}</div>
+      ${tieneElem('sede') ? `<div class="c-sede">${p.sede}</div>` : ''}
     </div>
   </div>`;
 }
@@ -1897,7 +2007,10 @@ const CARNET_MODELOS = {
   clasico: { nombre: 'Clásico', fn: carnetClasico },
   azul: { nombre: 'Azul', fn: carnetAzul },
   franja: { nombre: 'Franja', fn: carnetFranja },
-  oscuro: { nombre: 'Elegante', fn: carnetOscuro }
+  oscuro: { nombre: 'Elegante', fn: carnetOscuro },
+  verde: { nombre: 'Verde', fn: carnetVerde },
+  minimal: { nombre: 'Blanco', fn: carnetMinimal },
+  tricolor: { nombre: 'Tricolor', fn: carnetTricolor }
 };
 
 function carnetHTML(m) {
@@ -1926,7 +2039,7 @@ function renderCarnetList() {
       <div class="avatar">${m.foto ? `<img src="${m.foto}" alt="">` : esc(initials(m.nombres))}</div>
       <div>
         <div class="cm-name">${esc(m.nombres)}</div>
-        <div class="cm-sub">${esc(m.funcion || 'Miembro')} ${m.ci ? '· C.I. ' + esc(m.ci) : ''}</div>
+        <div class="cm-sub">${esc(m.funcion || 'Miembro')} ${m.ci ? '· C.I. ' + esc(fmtCI(m.ci)) : ''}</div>
       </div>
     </label>
   `).join('');
@@ -1980,6 +2093,82 @@ $('#modeloPicker').addEventListener('click', (e) => {
   updateModeloPicker();
   renderCarnetPreview();
   toast(`Modelo "${CARNET_MODELOS[btn.dataset.modelo].nombre}" seleccionado`);
+});
+
+/* ---------------- Editor de elementos del carnet ---------------- */
+function renderElemEditor() {
+  const layout = carnetLayout();
+  $('#elemList').innerHTML = layout.map((k, i) => `
+    <div class="elem-row" data-k="${k}">
+      <div class="elem-mov">
+        <button class="icon-btn" data-mv="-1" title="Subir" ${i === 0 ? 'disabled' : ''}><i data-lucide="chevron-up"></i></button>
+        <button class="icon-btn" data-mv="1" title="Bajar" ${i === layout.length - 1 ? 'disabled' : ''}><i data-lucide="chevron-down"></i></button>
+      </div>
+      <span class="elem-nom">${CARNET_ELEM_DEFS[k]}</span>
+      <button class="icon-btn danger" data-del="1" title="Quitar del carnet"><i data-lucide="x"></i></button>
+    </div>`).join('');
+  const faltan = Object.keys(CARNET_ELEM_DEFS).filter(k => !layout.includes(k));
+  $('#elemAddSel').innerHTML = faltan.length
+    ? faltan.map(k => `<option value="${k}">${CARNET_ELEM_DEFS[k]}</option>`).join('')
+    : '<option value="">No queda nada por agregar</option>';
+  $('#btnElemAdd').disabled = !faltan.length;
+  $('#textoLibreWrap').classList.toggle('hidden', !layout.includes('texto'));
+  $('#carnetTextoInput').value = settings.carnetTexto || '';
+  refreshIcons();
+}
+
+function setCarnetLayout(l) {
+  settings.carnetLayout = l;
+  saveSettings(settings);
+  renderElemEditor();
+  renderCarnetPreview();
+}
+
+$('#btnEditarCarnet').addEventListener('click', () => {
+  renderElemEditor();
+  $('#carnetEditorModal').classList.remove('hidden');
+});
+
+$('#elemList').addEventListener('click', (e) => {
+  const row = e.target.closest('.elem-row');
+  if (!row) return;
+  const l = carnetLayout();
+  const i = l.indexOf(row.dataset.k);
+  if (i < 0) return;
+  const mv = e.target.closest('[data-mv]');
+  if (mv) {
+    const j = i + Number(mv.dataset.mv);
+    if (j < 0 || j >= l.length) return;
+    [l[i], l[j]] = [l[j], l[i]];
+    setCarnetLayout(l);
+  } else if (e.target.closest('[data-del]')) {
+    l.splice(i, 1);
+    setCarnetLayout(l);
+  }
+});
+
+$('#btnElemAdd').addEventListener('click', () => {
+  const k = $('#elemAddSel').value;
+  if (!k) return;
+  const l = carnetLayout();
+  l.push(k);
+  setCarnetLayout(l);
+  if (k === 'texto') $('#carnetTextoInput').focus();
+});
+
+$('#carnetTextoInput').addEventListener('input', (e) => {
+  settings.carnetTexto = e.target.value;
+  saveSettings(settings);
+  renderCarnetPreview();
+});
+
+$('#btnLayoutReset').addEventListener('click', () => {
+  settings.carnetLayout = null;
+  settings.carnetTexto = '';
+  saveSettings(settings);
+  renderElemEditor();
+  renderCarnetPreview();
+  toast('Diseño original del carnet restaurado');
 });
 
 function renderCarnetPreview() {

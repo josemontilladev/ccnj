@@ -1083,6 +1083,61 @@ svg.lucide {
 .carnet.m-oscuro .c-anio { color: #feeb01; }
 .carnet.m-oscuro .c-sede { color: rgba(255, 255, 255, .82); }
 
+/* ---- Datos extra agregados desde el editor (teléfono, correo, texto libre…) ---- */
+.carnet .c-dato {
+  font-size: 2mm;
+  font-weight: 600;
+  color: #4d5a72;
+  margin-top: .6mm;
+  max-width: 46mm;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative; z-index: 2;
+}
+.carnet.m-oscuro .c-dato { color: #b9c9e8; }
+
+/* ---- Modelo Verde: banda inferior verde institucional ---- */
+.carnet.m-verde .c-photo { border-color: #079832; }
+.carnet.m-verde .c-funcion { background: #005FB2; }
+.carnet.m-verde .c-band { background: linear-gradient(135deg, #079832, #046b22); }
+
+/* ---- Modelo Blanco: minimalista con líneas finas ---- */
+.carnet.m-minimal {
+  border: .4mm solid #e2e7f0;
+  box-shadow: 0 6px 22px rgba(10, 30, 70, .1);
+}
+.carnet.m-minimal .c-logo { margin-top: 3mm; }
+.carnet.m-minimal .c-photo {
+  border: .4mm solid #10192b;
+  border-radius: 1mm;
+  box-shadow: none;
+}
+.carnet.m-minimal .c-funcion {
+  background: transparent;
+  border: .4mm solid #005FB2;
+  color: #005FB2;
+}
+.carnet.m-minimal .c-band { background: #fff; border-top: .4mm solid #10192b; }
+.carnet.m-minimal .c-band::before { display: none; }
+.carnet.m-minimal .c-anio { color: #10192b; font-weight: 700; letter-spacing: 1.1mm; }
+.carnet.m-minimal .c-sede { color: #64708a; }
+
+/* ---- Modelo Tricolor: encabezado diagonal y banda azul noche ---- */
+.carnet.m-tricolor .c-diag {
+  width: 100%; height: 5mm;
+  flex-shrink: 0;
+  background: linear-gradient(110deg, #005FB2 0 45%, #079832 45% 62%, #feeb01 62% 78%, #fff 78%);
+}
+.carnet.m-tricolor .c-logo { margin-top: .8mm; }
+.carnet.m-tricolor .c-photo { border-color: #005FB2; }
+.carnet.m-tricolor .c-funcion { background: #079832; }
+.carnet.m-tricolor .c-band { background: #0b2440; }
+.carnet.m-tricolor .c-band::before {
+  background: linear-gradient(90deg, #005FB2 33%, #079832 33% 66%, #feeb01 66%);
+}
+.carnet.m-tricolor .c-anio { color: #feeb01; }
+
 /* ---- QR de verificación ---- */
 .carnet .c-qr {
   width: 7.5mm; height: 7.5mm;
@@ -1132,6 +1187,9 @@ svg.lucide {
 .modelo-dot.d-azul { background: linear-gradient(180deg, #005FB2 55%, #fff 55%); border: 1px solid #d8dfeb; }
 .modelo-dot.d-franja { background: linear-gradient(90deg, #005FB2 35%, #079832 35% 55%, #fff 55%); border: 1px solid #d8dfeb; }
 .modelo-dot.d-oscuro { background: linear-gradient(135deg, #0d1830 70%, #feeb01 70%); }
+.modelo-dot.d-verde { background: linear-gradient(180deg, #fff 45%, #079832 45%); border: 1px solid #d8dfeb; }
+.modelo-dot.d-minimal { background: #fff; border: 1px solid #8a93a5; }
+.modelo-dot.d-tricolor { background: linear-gradient(110deg, #005FB2 40%, #079832 40% 65%, #feeb01 65%); }
 
 /* ---- Ajustes: sección avanzada colapsada ---- */
 .ajustes-avanzado {
@@ -1148,6 +1206,22 @@ svg.lucide {
   user-select: none;
 }
 .ajustes-avanzado summary:hover { color: var(--azul); }
+
+/* ---- Editor de elementos del carnet ---- */
+.btn-editar-carnet { width: 100%; justify-content: center; margin-bottom: 12px; }
+.elem-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.elem-row {
+  display: flex; align-items: center; gap: 10px;
+  background: #f4f6fb;
+  border: 1px solid #e4eaf3;
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+.elem-mov { display: flex; gap: 4px; }
+.elem-mov .icon-btn[disabled] { opacity: .35; cursor: default; }
+.elem-nom { flex: 1; font-weight: 600; font-size: 14px; }
+.elem-add { display: flex; gap: 10px; align-items: stretch; margin-bottom: 12px; }
+.elem-add .cselect, .elem-add select { flex: 1; }
 
 /* ---- Navegación entre fichas (modal del miembro) ---- */
 .view-nav {
