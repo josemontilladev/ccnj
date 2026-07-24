@@ -1722,6 +1722,79 @@ $('#btnListaPDF').addEventListener('click', () => {
   $('#listaModal').classList.add('hidden');
 });
 
+/* --- Descargar las fotos de los miembros (para el carnet u otros usos) --- */
+const fotosSeleccion = new Set();
+
+function miembrosConFoto() {
+  const q = $('#fotosSearch').value.trim();
+  return miembrosVisibles().filter(m => m.foto && (!q || norm(m.nombres || '').includes(norm(q))));
+}
+
+function renderFotosList() {
+  const lista = miembrosConFoto();
+  // Descarta selecciones que ya no están a la vista (p. ej. al filtrar)
+  const visibles = new Set(lista.map(m => m.id));
+  [...fotosSeleccion].forEach(id => { if (!visibles.has(id)) fotosSeleccion.delete(id); });
+
+  $('#fotosList').innerHTML = lista.length ? lista.map(m => `
+    <label class="cm-item" data-id="${m.id}">
+      <input type="checkbox" ${fotosSeleccion.has(m.id) ? 'checked' : ''}>
+      <div class="avatar"><img src="${m.foto}" alt=""></div>
+      <div>
+        <div class="cm-name">${esc(m.nombres)}</div>
+        <div class="cm-sub">${m.ci ? 'C.I. ' + esc(fmtCI(m.ci)) : ''}</div>
+      </div>
+    </label>
+  `).join('') : '<p class="empty-msg">Ningún miembro con foto coincide con el filtro.</p>';
+
+  $('#fotosCheckAll').checked = lista.length > 0 && fotosSeleccion.size === lista.length;
+  const n = fotosSeleccion.size;
+  $('#btnFotosDescargar').disabled = !n;
+  $('#btnFotosDescargar').innerHTML = `<i data-lucide="download"></i> Descargar${n ? ` (${n})` : ''}`;
+  refreshIcons();
+}
+
+$('#btnExportFotos').addEventListener('click', () => {
+  if (!MEMBERS.some(m => m.foto)) { toast('Ningún miembro tiene foto todavía', 'err'); return; }
+  fotosSeleccion.clear();
+  $('#fotosSearch').value = '';
+  renderFotosList();
+  $('#fotosModal').classList.remove('hidden');
+});
+
+$('#fotosSearch').addEventListener('input', renderFotosList);
+
+$('#fotosList').addEventListener('change', (e) => {
+  const item = e.target.closest('.cm-item');
+  if (!item) return;
+  const id = Number(item.dataset.id);
+  if (e.target.checked) fotosSeleccion.add(id); else fotosSeleccion.delete(id);
+  renderFotosList();
+});
+
+$('#fotosCheckAll').addEventListener('change', (e) => {
+  const lista = miembrosConFoto();
+  if (e.target.checked) lista.forEach(m => fotosSeleccion.add(m.id));
+  else fotosSeleccion.clear();
+  renderFotosList();
+});
+
+$('#btnFotosDescargar').addEventListener('click', async () => {
+  const sel = MEMBERS.filter(m => fotosSeleccion.has(m.id) && m.foto);
+  if (!sel.length) return;
+  toast(`Descargando ${sel.length} foto(s)…`);
+  for (const m of sel) {
+    const ext = ((m.foto.match(/^data:image\/(\w+)/) || [])[1] || 'png').replace('jpeg', 'jpg');
+    const a = document.createElement('a');
+    a.download = `foto_${nombreArchivo(m)}.${ext}`;
+    a.href = m.foto;
+    a.click();
+    // Pausa breve: evita que el navegador bloquee las descargas múltiples
+    await new Promise(r => setTimeout(r, 300));
+  }
+  toast(`${sel.length} foto(s) descargadas`);
+});
+
 /* --- Planilla de membresía en blanco (para imprimir y llenar a mano) --- */
 function planillaBlancoHTML() {
   const logo = (window.ASSETS && window.ASSETS.logo) || 'logo.png';
