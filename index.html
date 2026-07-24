@@ -256,6 +256,11 @@
           <option value="inactivos">Inactivos</option>
           <option value="porRenovar">Por renovar</option>
         </select>
+        <select id="sortOrden" class="filter-select">
+          <option value="az">Nombre A → Z</option>
+          <option value="za">Nombre Z → A</option>
+          <option value="recientes">Más recientes</option>
+        </select>
         <button class="btn btn-ghost" id="btnFiltros"><i data-lucide="sliders-horizontal"></i> Filtros</button>
         <span id="memberCount" class="member-count"></span>
       </div>
@@ -403,7 +408,7 @@
       <button class="modal-close" data-close="listaModal"><i data-lucide="x"></i></button>
     </div>
     <div class="modal-body">
-      <p class="lista-hint">Lista básica (nombre, cédula y teléfono) de <b id="listaCount"></b>, en orden alfabético. Se respetan la búsqueda y los filtros activos.</p>
+      <p class="lista-hint">Lista básica (nombre, cédula y teléfono) de <b id="listaCount"></b>, con el mismo orden, búsqueda y filtros que muestra la tabla.</p>
       <div class="lista-opts">
         <button class="btn btn-ghost" id="btnListaCopiar"><i data-lucide="copy"></i> Copiar texto</button>
         <button class="btn btn-ghost" id="btnListaTXT"><i data-lucide="file-text"></i> Descargar TXT</button>
@@ -419,6 +424,11 @@
   <div class="modal modal-lg">
     <div class="modal-head">
       <h2>Ficha del miembro</h2>
+      <div class="view-nav">
+        <button class="icon-btn" id="btnViewPrev" title="Miembro anterior (←)"><i data-lucide="chevron-left"></i></button>
+        <span id="viewPos"></span>
+        <button class="icon-btn" id="btnViewNext" title="Miembro siguiente (→)"><i data-lucide="chevron-right"></i></button>
+      </div>
       <button class="modal-close" data-close="viewModal"><i data-lucide="x"></i></button>
     </div>
     <div class="modal-body" id="viewBody"></div>
