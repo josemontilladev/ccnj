@@ -345,7 +345,11 @@
             <button class="modelo-btn" data-modelo="azul"><span class="modelo-dot d-azul"></span>Azul</button>
             <button class="modelo-btn" data-modelo="franja"><span class="modelo-dot d-franja"></span>Franja</button>
             <button class="modelo-btn" data-modelo="oscuro"><span class="modelo-dot d-oscuro"></span>Elegante</button>
+            <button class="modelo-btn" data-modelo="verde"><span class="modelo-dot d-verde"></span>Verde</button>
+            <button class="modelo-btn" data-modelo="minimal"><span class="modelo-dot d-minimal"></span>Blanco</button>
+            <button class="modelo-btn" data-modelo="tricolor"><span class="modelo-dot d-tricolor"></span>Tricolor</button>
           </div>
+          <button class="btn btn-ghost btn-editar-carnet" id="btnEditarCarnet"><i data-lucide="settings-2"></i> Editar elementos del carnet</button>
           <div id="carnetPreview" class="carnet-preview">
             <p class="empty-msg">Selecciona un miembro para ver su carnet</p>
           </div>
@@ -396,6 +400,31 @@
     </div>
     <div class="modal-foot">
       <button class="btn btn-primary" id="btnSaveSettings"><i data-lucide="check"></i> Guardar ajustes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL EDITAR CARNET ===== -->
+<div class="modal-backdrop hidden" id="carnetEditorModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Editar carnet</h2>
+      <button class="modal-close" data-close="carnetEditorModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="lista-hint">Sube o baja los elementos con las flechas, quítalos con la ✕ o agrega nuevos abajo.
+        Los cambios aplican a todos los modelos y se guardan automáticamente.</p>
+      <div id="elemList" class="elem-list"></div>
+      <div class="elem-add">
+        <select id="elemAddSel" class="filter-select"></select>
+        <button class="btn btn-ghost" id="btnElemAdd"><i data-lucide="plus"></i> Agregar</button>
+      </div>
+      <label class="f-block hidden" id="textoLibreWrap">Contenido del texto libre
+        <input type="text" id="carnetTextoInput" placeholder="Ej: Válido hasta diciembre 2026">
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="btnLayoutReset"><i data-lucide="rotate-ccw"></i> Restaurar diseño original</button>
     </div>
   </div>
 </div>
