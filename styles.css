@@ -1257,6 +1257,22 @@ svg.lucide {
 .sk-linea.corta { width: 45%; max-width: 90px; }
 .sk-num { display: inline-block; width: 40px; height: 26px; vertical-align: middle; }
 
+/* ---- Modal descargar fotos ---- */
+.fotos-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.fotos-toolbar .list-filter { flex: 1; margin: 0; }
+.fotos-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  border: 1px solid #e4eaf3;
+  border-radius: 12px;
+  padding: 4px;
+}
+
 /* ---- Modal exportar lista ---- */
 .lista-hint {
   color: var(--gris);

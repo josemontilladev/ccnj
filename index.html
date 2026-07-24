@@ -241,6 +241,7 @@
           <input type="file" id="importFileInput" accept=".json" hidden>
           <button class="btn btn-ghost" id="btnExportCSV"><i data-lucide="file-spreadsheet"></i> Excel (CSV)</button>
           <button class="btn btn-ghost" id="btnExportLista"><i data-lucide="clipboard-list"></i> Lista</button>
+          <button class="btn btn-ghost" id="btnExportFotos"><i data-lucide="image-down"></i> Fotos</button>
           <button class="btn btn-primary" data-goto="registrar"><i data-lucide="user-plus"></i> Registrar</button>
         </div>
       </header>
@@ -425,6 +426,27 @@
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" id="btnLayoutReset"><i data-lucide="rotate-ccw"></i> Restaurar diseño original</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL DESCARGAR FOTOS ===== -->
+<div class="modal-backdrop hidden" id="fotosModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Descargar fotos</h2>
+      <button class="modal-close" data-close="fotosModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="lista-hint">Marca los miembros cuyas fotos quieres descargar. Cada foto se guarda con el nombre de la persona.</p>
+      <div class="fotos-toolbar">
+        <label class="check-all"><input type="checkbox" id="fotosCheckAll"> Seleccionar todas</label>
+        <input type="search" id="fotosSearch" class="list-filter" placeholder="Filtrar por nombre…">
+      </div>
+      <div id="fotosList" class="fotos-list"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="btnFotosDescargar" disabled><i data-lucide="download"></i> Descargar</button>
     </div>
   </div>
 </div>
