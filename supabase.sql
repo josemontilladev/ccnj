@@ -1,6 +1,7 @@
 -- ============================================================
 -- Esquema de la base de datos — Sistema de Membresía CFNJ
 -- Pegar completo en Supabase: SQL Editor → New query → Run
+-- Se puede ejecutar varias veces sin problema (es idempotente).
 -- ============================================================
 
 create table if not exists public.miembros (
@@ -31,6 +32,13 @@ create table if not exists public.miembros (
   "fechaRegistro" timestamptz default now()
 );
 
+-- Huella de la planilla de la que salió el registro (detección de duplicados):
+--   planillaHash  = SHA-256 del archivo exacto que se subió
+--   planillaPhash = huella visual (dHash) que sobrevive a recompresión / cambio de tamaño
+alter table public.miembros add column if not exists "planillaHash" text;
+alter table public.miembros add column if not exists "planillaPhash" text;
+create index if not exists miembros_planilla_hash on public.miembros ("planillaHash");
+
 -- Seguridad: solo usuarios con sesión iniciada pueden ver y modificar
 alter table public.miembros enable row level security;
 
@@ -49,19 +57,62 @@ create policy "miembros_delete" on public.miembros
   for delete to authenticated using (true);
 
 -- ============================================================
--- Registro con código de invitación: bloquea en el servidor la
--- creación de cuentas que no traigan el código correcto.
--- Si cambias el código, cámbialo aquí Y en config-nube.js.
+-- Cédula única. Bloquea en el servidor que dos miembros tengan
+-- la misma cédula (se comparan solo los dígitos: "24.266.163"
+-- y "24266163" cuentan como la misma). Las cédulas vacías no
+-- participan.
+--
+-- Si este bloque falla con "could not create unique index", ya
+-- hay duplicados en la tabla. Encuéntralos con la consulta
+-- "DUPLICADOS EXISTENTES" del final, corrígelos desde la app y
+-- vuelve a correr este archivo.
 -- ============================================================
+create unique index if not exists miembros_ci_unica
+  on public.miembros (regexp_replace(coalesce("ci", ''), '\D', '', 'g'))
+  where regexp_replace(coalesce("ci", ''), '\D', '', 'g') <> '';
+
+-- ============================================================
+-- Código de invitación (registro de cuentas nuevas).
+--
+-- El código vive SOLO aquí, en un esquema privado que la API no
+-- expone; nunca va en el código de la app. Para cambiarlo, corre
+-- únicamente la línea "update privado.config ..." de más abajo con
+-- el valor nuevo. Usa un código largo y difícil de adivinar.
+-- ============================================================
+create schema if not exists privado;
+revoke all on schema privado from public, anon, authenticated;
+
+create table if not exists privado.config (
+  clave text primary key,
+  valor text not null
+);
+revoke all on privado.config from public, anon, authenticated;
+
+-- >>> CAMBIA EL CÓDIGO AQUÍ (y compártelo solo con la gente de la iglesia) <<<
+insert into privado.config (clave, valor)
+  values ('codigo_invitacion', 'CAMBIA-ESTE-CODIGO')
+  on conflict (clave) do nothing;
+-- Para cambiarlo después (o la primera vez):
+-- update privado.config set valor = 'MI-CODIGO-NUEVO' where clave = 'codigo_invitacion';
+
 create or replace function public.validar_codigo_invitacion()
 returns trigger
 language plpgsql
 security definer
+set search_path = ''
 as $$
+declare
+  esperado text;
 begin
-  if coalesce(new.raw_user_meta_data->>'codigo', '') <> 'CCNJ-2026' then
+  select valor into esperado from privado.config where clave = 'codigo_invitacion';
+  if esperado is null or esperado = 'CAMBIA-ESTE-CODIGO' then
+    raise exception 'Registro deshabilitado: el administrador aun no definio el codigo de invitacion';
+  end if;
+  if coalesce(new.raw_user_meta_data->>'codigo', '') <> esperado then
     raise exception 'Codigo de invitacion incorrecto';
   end if;
+  -- El código no se guarda en el perfil del usuario
+  new.raw_user_meta_data := new.raw_user_meta_data - 'codigo';
   return new;
 end;
 $$;
@@ -69,8 +120,48 @@ $$;
 -- Permisos: el servicio de autenticación debe poder ejecutar la función
 grant usage on schema public to supabase_auth_admin;
 grant execute on function public.validar_codigo_invitacion() to supabase_auth_admin;
+revoke execute on function public.validar_codigo_invitacion() from public, anon, authenticated;
 
 drop trigger if exists trg_codigo_invitacion on auth.users;
 create trigger trg_codigo_invitacion
   before insert on auth.users
   for each row execute function public.validar_codigo_invitacion();
+
+-- ============================================================
+-- Fotos de los miembros en Storage (bucket "fotos").
+-- Las fotos se guardan como archivos y en la tabla solo queda la
+-- URL, así la base de datos se mantiene liviana y rápida.
+-- El bucket es de lectura pública pero los nombres de archivo son
+-- aleatorios (no se pueden adivinar); solo usuarios con sesión
+-- pueden subir, reemplazar o borrar.
+-- ============================================================
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('fotos', 'fotos', true, 2097152, array['image/jpeg', 'image/png', 'image/webp'])
+  on conflict (id) do update
+    set public = true,
+        file_size_limit = 2097152,
+        allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp'];
+
+drop policy if exists "fotos_lectura" on storage.objects;
+drop policy if exists "fotos_subir" on storage.objects;
+drop policy if exists "fotos_actualizar" on storage.objects;
+drop policy if exists "fotos_borrar" on storage.objects;
+
+create policy "fotos_lectura" on storage.objects
+  for select to public using (bucket_id = 'fotos');
+create policy "fotos_subir" on storage.objects
+  for insert to authenticated with check (bucket_id = 'fotos');
+create policy "fotos_actualizar" on storage.objects
+  for update to authenticated using (bucket_id = 'fotos');
+create policy "fotos_borrar" on storage.objects
+  for delete to authenticated using (bucket_id = 'fotos');
+
+-- ============================================================
+-- DUPLICADOS EXISTENTES (solo consulta, no modifica nada).
+-- Lista los miembros que comparten cédula para que los corrijas
+-- desde la app antes de crear el índice único.
+-- ============================================================
+-- select regexp_replace("ci", '\D', '', 'g') as cedula, count(*), array_agg(id), array_agg("nombres")
+--   from public.miembros
+--  where regexp_replace(coalesce("ci", ''), '\D', '', 'g') <> ''
+--  group by 1 having count(*) > 1;

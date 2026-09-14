@@ -1,0 +1,12 @@
+# Archivos internos que no deben servirse desde el sitio publicado
+supabase.sql
+escanear_planillas.py
+escanear-planillas.bat
+empaquetar-app.bat
+crear-acceso-directo.bat
+crear-acceso-directo.ps1
+electron/
+README.md
+.gitignore
+planillas/
+__pycache__/
