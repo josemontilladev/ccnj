@@ -14,8 +14,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <!-- Versiones fijas: una actualización externa no puede romper la app -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -73,6 +74,13 @@
         <span id="backupMsg"></span>
         <button class="btn btn-primary" id="btnBackupNow">Descargar respaldo</button>
         <button class="btn btn-ghost" id="btnBackupLater">Después</button>
+      </div>
+
+      <!-- Cambios hechos sin internet que el servidor rechazó al sincronizar -->
+      <div id="syncErrorBanner" class="backup-banner banner-error hidden">
+        <i data-lucide="cloud-alert"></i>
+        <span id="syncErrorMsg"></span>
+        <button class="btn btn-ghost" id="btnSyncErrorOk">Entendido</button>
       </div>
 
       <div class="stats-grid">
@@ -382,6 +390,11 @@
         Renovación anual
         <button class="btn btn-ghost" id="btnRenovar" type="button"><i data-lucide="refresh-cw"></i> <span id="renovarLabel">Iniciar renovación</span></button>
         <small>Cambia el año de membresía y marca a todos los miembros como "Por renovar". Luego, en Miembros, haz clic en la insignia amarilla de cada persona cuando renueve.</small>
+      </div>
+      <div class="f-block hidden" id="migrarFotosBlock">
+        Fotos en la nube
+        <button class="btn btn-ghost" id="btnMigrarFotos" type="button"><i data-lucide="cloud-upload"></i> <span id="migrarFotosLabel">Mover fotos a Storage</span></button>
+        <small id="migrarFotosInfo">Pasa las fotos guardadas dentro de la tabla al almacenamiento de archivos de Supabase. La base de datos queda más liviana y la app carga más rápido. Se hace una sola vez.</small>
       </div>
       <details class="ajustes-avanzado">
         <summary>Opciones avanzadas (técnicas)</summary>

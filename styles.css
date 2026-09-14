@@ -1444,3 +1444,13 @@ svg.lucide {
   }
   .members-table tr:hover td { background: transparent; }
 }
+
+/* ================= AVISO DE SINCRONIZACIÓN ================= */
+.backup-banner.banner-error {
+  background: #fdecec;
+  border-color: #f3b4b4;
+  color: #8a1f1f;
+}
+.backup-banner.banner-error ul { margin: 6px 0 0; padding-left: 18px; }
+.batch-line.info::before { content: '→  '; color: var(--azul); font-weight: 700; }
+.batch-line.info { color: #345; }

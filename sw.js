@@ -1,8 +1,10 @@
 /* Service Worker — permite que la app abra y funcione sin internet.
-   Cachea la interfaz (HTML/CSS/JS/librerías); nunca cachea los datos
+   Cachea la interfaz (HTML/CSS/JS/librerías) y las fotos de los
+   miembros guardadas en Storage; nunca cachea los datos de la tabla
    de Supabase ni la lectura de planillas (/api/). */
 
-const CACHE = 'ccnj-v6';
+const CACHE = 'ccnj-v7';
+const CACHE_FOTOS = 'ccnj-fotos-v1';
 const APP_SHELL = [
   './',
   'index.html',
@@ -27,7 +29,9 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(
+        keys.filter((k) => k !== CACHE && k !== CACHE_FOTOS).map((k) => caches.delete(k))
+      ))
       .then(() => self.clients.claim())
   );
 });
@@ -38,7 +42,23 @@ self.addEventListener('fetch', (e) => {
 
   // Datos e IA: siempre directo a la red (nunca del caché)
   if (url.pathname.startsWith('/api/')) return;
-  if (url.hostname.endsWith('supabase.co')) return;
+
+  if (url.hostname.endsWith('supabase.co')) {
+    // Fotos de Storage: los archivos tienen nombre aleatorio y nunca
+    // cambian, así que se pueden cachear para verlas sin internet
+    if (url.pathname.includes('/storage/v1/object/public/')) {
+      e.respondWith(
+        caches.open(CACHE_FOTOS).then(async (c) => {
+          const hit = await c.match(e.request);
+          if (hit) return hit;
+          const resp = await fetch(e.request);
+          if (resp && resp.ok) c.put(e.request, resp.clone());
+          return resp;
+        })
+      );
+    }
+    return; // tabla y autenticación: directo a la red
+  }
 
   // Interfaz y librerías: caché primero, red como respaldo,
   // y actualización del caché en segundo plano

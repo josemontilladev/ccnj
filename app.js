@@ -150,9 +150,69 @@ function miembroParaNube(member) {
   rec.estado = member.estado || 'Activo';
   rec.renovado = member.renovado !== false;
   rec.seedKey = member.seedKey || null;
+  rec.planillaHash = member.planillaHash || null;
+  rec.planillaPhash = member.planillaPhash || null;
   rec.fechaRegistro = member.fechaRegistro || new Date().toISOString();
   if (member.id != null) rec.id = member.id;
   return rec;
+}
+
+/* Mensajes claros para los errores del servidor que el usuario puede provocar */
+function errorNube(error) {
+  const msg = error?.message || String(error);
+  if (error?.code === '23505' || /miembros_ci_unica|duplicate key/i.test(msg)) {
+    return new Error('Ya existe un miembro con esa cédula en la base de datos');
+  }
+  return new Error(msg);
+}
+
+/* ---------------- Fotos en Storage (modo nube) ----------------
+   Las fotos se guardan como archivos en el bucket "fotos" y en la
+   tabla solo queda la URL. Nombres aleatorios: no se pueden adivinar. */
+const BUCKET_FOTOS = 'fotos';
+
+function esFotoStorage(u) {
+  return typeof u === 'string' && u.includes('/storage/v1/object/public/' + BUCKET_FOTOS + '/');
+}
+function esFotoBase64(u) {
+  return typeof u === 'string' && u.startsWith('data:image/');
+}
+
+function dataUrlABlob(dataUrl) {
+  const [meta, b64] = dataUrl.split(',');
+  const mime = (meta.match(/data:(.*?);/) || [])[1] || 'image/jpeg';
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+/* Sube una foto (dataURL) al bucket y devuelve su URL pública */
+async function subirFotoStorage(dataUrl) {
+  const blob = dataUrlABlob(dataUrl);
+  const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+  const nombre = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2)) + '.' + ext;
+  const { error } = await sb.storage.from(BUCKET_FOTOS).upload(nombre, blob, { contentType: blob.type, upsert: false });
+  if (error) throw new Error('No se pudo subir la foto: ' + error.message);
+  return sb.storage.from(BUCKET_FOTOS).getPublicUrl(nombre).data.publicUrl;
+}
+
+/* Borra del bucket la foto de una URL (si falla no pasa nada: queda un archivo huérfano) */
+async function borrarFotoStorage(url) {
+  if (!sb || !esFotoStorage(url)) return;
+  const nombre = decodeURIComponent(url.split('/public/' + BUCKET_FOTOS + '/')[1] || '').split('?')[0];
+  if (!nombre) return;
+  try { await sb.storage.from(BUCKET_FOTOS).remove([nombre]); } catch {}
+}
+
+/* Si el miembro trae la foto en base64, la sube a Storage y deja la URL.
+   Si reemplaza una foto anterior del bucket, borra la vieja. */
+async function asegurarFotoEnStorage(member) {
+  if (!sb || !esFotoBase64(member.foto)) return member;
+  const anterior = member._fotoAnterior || (member.id > 0 ? MEMBERS.find(m => m.id === member.id)?.foto : null);
+  const url = await subirFotoStorage(member.foto);
+  if (anterior && anterior !== url) borrarFotoStorage(anterior);
+  return { ...member, foto: url };
 }
 
 /* ---------------- Base de datos (IndexedDB) ----------------
@@ -229,7 +289,7 @@ function guardarCache(lista) {
 /* Todas las columnas menos "foto": las fotos (base64) son lo pesado de bajar */
 const COLUMNAS_SIN_FOTO = 'id,nombres,ci,fechaNacimiento,lugarNacimiento,estadoCivil,correo,telefono,' +
   'direccion,ocupacion,profesion,esposo,hijos,padres,viveConPadres,viveConEsposoHijos,recibioCristo,' +
-  'bautizo,tiempoConfraternidad,funcion,estado,renovado,seedKey,fechaRegistro';
+  'bautizo,tiempoConfraternidad,funcion,estado,renovado,seedKey,fechaRegistro,planillaHash,planillaPhash';
 
 async function dbAll(onParcial) {
   if (sb) {
@@ -268,10 +328,13 @@ async function dbPut(member) {
   if (sb) {
     if (!OFFLINE) {
       try {
-        const rec = miembroParaNube(member);
+        const conFoto = await asegurarFotoEnStorage(member);
+        const rec = miembroParaNube(conFoto);
         if (rec.id != null && rec.id < 0) delete rec.id; // los id temporales no van al servidor
         const { data, error } = await sb.from('miembros').upsert(rec).select('id').single();
-        if (error) throw new Error(error.message);
+        if (error) throw errorNube(error);
+        member.foto = conFoto.foto; // la URL sustituye al base64 también en memoria
+        delete member._fotoAnterior;
         return data.id;
       } catch (err) {
         if (!esErrorRed(err)) throw err;
@@ -293,8 +356,10 @@ async function dbDelete(id) {
   if (sb) {
     if (!OFFLINE) {
       try {
+        const fotoPrevia = MEMBERS.find(m => m.id === id)?.foto;
         const { error } = await sb.from('miembros').delete().eq('id', id);
         if (error) throw new Error(error.message);
+        borrarFotoStorage(fotoPrevia);
         return;
       } catch (err) {
         if (!esErrorRed(err)) throw err;
@@ -333,6 +398,36 @@ function programarSync() {
   if (!syncTimer) syncTimer = setInterval(intentarSync, 45000);
 }
 
+/* Cambios hechos sin internet que el servidor rechazó: se muestran en un
+   aviso en Inicio hasta que el usuario lo cierre (sobrevive a recargas) */
+function registrarSyncErrores(lista) {
+  let prev = [];
+  try { prev = JSON.parse(localStorage.getItem('cfnj_syncErrores') || '[]'); } catch {}
+  const todos = [...prev, ...lista].slice(-20);
+  try { localStorage.setItem('cfnj_syncErrores', JSON.stringify(todos)); } catch {}
+  mostrarSyncErrores();
+  toast(`${lista.length} cambio(s) no se pudieron guardar en la nube. Revisa el aviso en Inicio.`, 'err', 8000);
+}
+
+function mostrarSyncErrores() {
+  const banner = $('#syncErrorBanner');
+  if (!banner) return;
+  let lista = [];
+  try { lista = JSON.parse(localStorage.getItem('cfnj_syncErrores') || '[]'); } catch {}
+  banner.classList.toggle('hidden', !lista.length);
+  if (!lista.length) return;
+  $('#syncErrorMsg').innerHTML =
+    '<b>Estos cambios hechos sin internet no se pudieron guardar en la nube</b> (el servidor los rechazó). ' +
+    'Revisa a estos miembros y vuelve a hacer el cambio si hace falta:' +
+    '<ul>' + lista.map(t => `<li>${esc(t)}</li>`).join('') + '</ul>';
+  refreshIcons();
+}
+
+$('#btnSyncErrorOk')?.addEventListener('click', () => {
+  localStorage.removeItem('cfnj_syncErrores');
+  mostrarSyncErrores();
+});
+
 async function intentarSync() {
   if (!sb || !SESION || sincronizando) return;
   sincronizando = true;
@@ -343,13 +438,15 @@ async function intentarSync() {
       return;
     }
     let ok = 0;
+    const descartados = [];
     for (const p of pend) {
       try {
         if (p.tipo === 'put') {
-          const rec = miembroParaNube(p.member);
+          const conFoto = await asegurarFotoEnStorage(p.member);
+          const rec = miembroParaNube(conFoto);
           if (rec.id != null && rec.id < 0) delete rec.id;
           const { error } = await sb.from('miembros').upsert(rec);
-          if (error) throw new Error(error.message);
+          if (error) throw errorNube(error);
         } else {
           const { error } = await sb.from('miembros').delete().eq('id', p.id);
           if (error) throw new Error(error.message);
@@ -358,11 +455,16 @@ async function intentarSync() {
         ok++;
       } catch (err) {
         if (esErrorRed(err)) break; // sigue sin internet: reintenta después
-        // Error real del servidor con este cambio: se descarta para no trancar la cola
+        // Error real del servidor con este cambio: se descarta para no trancar
+        // la cola, pero se le avisa al usuario en un aviso visible
         console.warn('Cambio pendiente descartado:', err.message, p);
+        descartados.push(p.tipo === 'put'
+          ? `${p.member.nombres || 'Miembro sin nombre'}: ${err.message}`
+          : `Eliminación del miembro #${p.id}: ${err.message}`);
         await idbDel('pendientes', p.key);
       }
     }
+    if (descartados.length) registrarSyncErrores(descartados);
     if (ok) {
       OFFLINE = false;
       toast(`${ok} cambio(s) sincronizados con la nube`);
@@ -492,8 +594,109 @@ const state = {
   queue: [],          // archivos pendientes
   planillaDataUrl: null, // imagen actual de la planilla (para recorte)
   fotoDataUrl: null,  // foto recortada / subida del miembro
-  pendingBox: null    // recuadro de la foto detectado por la IA (coords 0-1000)
+  pendingBox: null,   // recuadro de la foto detectado por la IA (coords 0-1000)
+  huella: null        // huellas (sha + phash) de la planilla en revisión
 };
+
+/* ---------------- Detección de planillas duplicadas ----------------
+   Antes de gastar una lectura de IA se calcula una huella de la imagen:
+   - sha:   SHA-256 del archivo exacto (la misma foto subida dos veces)
+   - phash: huella visual dHash de 256 bits (la misma foto recomprimida,
+            reenviada por WhatsApp o reducida de tamaño)
+   Luego, ya con los datos leídos, se compara la persona: cédula, o
+   nombre + fecha de nacimiento cuando no hay cédula. */
+async function sha256Archivo(file) {
+  try {
+    const buf = await file.arrayBuffer();
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch { return null; }
+}
+
+/* dHash: reduce a 17x16 en gris y compara cada píxel con su vecino derecho → 256 bits en hex */
+function phashImagen(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const W = 17, H = 16;
+        const cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        const ctx = cv.getContext('2d');
+        ctx.drawImage(img, 0, 0, W, H);
+        const px = ctx.getImageData(0, 0, W, H).data;
+        const gris = (i) => 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+        let hex = '', nib = 0, n = 0;
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W - 1; x++) {
+            nib = (nib << 1) | (gris(y * W + x) < gris(y * W + x + 1) ? 1 : 0);
+            if (++n % 4 === 0) { hex += nib.toString(16); nib = 0; }
+          }
+        }
+        resolve(hex);
+      } catch { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+/* Bits distintos entre dos huellas visuales (0 = idénticas) */
+function distanciaPhash(a, b) {
+  if (!a || !b || a.length !== b.length) return Infinity;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) {
+    let x = parseInt(a[i], 16) ^ parseInt(b[i], 16);
+    while (x) { d += x & 1; x >>= 1; }
+  }
+  return d;
+}
+const PHASH_UMBRAL = 8; // de 256 bits: por debajo se considera la misma foto
+
+/* Calcula ambas huellas de una planilla (archivo original + imagen redimensionada) */
+async function huellaPlanilla(file, dataUrl) {
+  const [sha, phash] = await Promise.all([sha256Archivo(file), phashImagen(dataUrl)]);
+  return { sha, phash };
+}
+
+/* Busca si esta imagen de planilla ya fue registrada. Devuelve null o
+   { miembro, motivo: 'exacta' | 'visual' }. "extra" permite incluir los
+   miembros creados en la misma pasada que aún no están en MEMBERS. */
+function buscarPlanillaDuplicada(huella, extra = []) {
+  const lista = [...MEMBERS, ...extra];
+  if (huella?.sha) {
+    const m = lista.find(x => x.planillaHash && x.planillaHash === huella.sha);
+    if (m) return { miembro: m, motivo: 'exacta' };
+  }
+  if (huella?.phash) {
+    const m = lista.find(x => x.planillaPhash && distanciaPhash(x.planillaPhash, huella.phash) <= PHASH_UMBRAL);
+    if (m) return { miembro: m, motivo: 'visual' };
+  }
+  return null;
+}
+
+/* Busca un miembro que sea la misma persona: por cédula o, si no hay
+   cédula, por nombre + fecha de nacimiento. Devuelve null o
+   { miembro, motivo: 'cedula' | 'nombre' } */
+const soloDigitos = (v) => String(v || '').replace(/\D/g, '');
+const nombreClave = (v) => norm(v).replace(/\s+/g, ' ').trim();
+/* "05/06/1985", "5-6-1985" y "5 de 6 de 1985" → "5-6-1985" */
+const fechaClave = (v) => (String(v || '').match(/\d+/g) || []).map(Number).join('-');
+function buscarPersonaDuplicada(member, extra = []) {
+  const lista = [...MEMBERS, ...extra].filter(x => x !== member && x.id !== member.id);
+  const ci = soloDigitos(member.ci);
+  if (ci) {
+    const m = lista.find(x => soloDigitos(x.ci) === ci);
+    if (m) return { miembro: m, motivo: 'cedula' };
+  }
+  const nombre = nombreClave(member.nombres);
+  const fecha = fechaClave(member.fechaNacimiento);
+  if (nombre && fecha) {
+    const m = lista.find(x => nombreClave(x.nombres) === nombre && fechaClave(x.fechaNacimiento) === fecha);
+    if (m) return { miembro: m, motivo: 'nombre' };
+  }
+  return null;
+}
 
 /* Convierte las coordenadas devueltas por la IA en un recuadro válido */
 function boxFromExtracted(d) {
@@ -850,9 +1053,10 @@ function addBatchLog(tipo, texto) {
 
 async function runBatch() {
   const total = state.queue.length;
-  const failed = [];
+  const failed = [];      // con error o que requieren revisión manual
   const createdIds = [];
-  let done = 0, saved = 0, skipped = 0;
+  const creados = [];     // miembros creados en esta pasada (para detectar duplicados entre sí)
+  let done = 0, saved = 0, skipped = 0, revisar = 0;
 
   showStep('batch');
   $('#batchTitle').textContent = 'Procesando planillas…';
@@ -867,20 +1071,50 @@ async function runBatch() {
     $('#batchStatus').textContent = `Leyendo ${done} de ${total}: ${file.name}`;
     try {
       const dataUrl = await resizeImage(file, 2000, 0.9);
+
+      // 1) ¿Es la misma imagen de una planilla ya registrada? (se decide sin gastar IA)
+      const huella = await huellaPlanilla(file, dataUrl);
+      const dupImg = buscarPlanillaDuplicada(huella, creados);
+      if (dupImg && dupImg.motivo === 'exacta') {
+        skipped++;
+        addBatchLog('warn', `${file.name}: es la misma imagen de la planilla de ${dupImg.miembro.nombres} — omitida`);
+        continue;
+      }
+      if (dupImg) {
+        revisar++;
+        file._aviso = `Esta imagen se parece mucho a la planilla de ${dupImg.miembro.nombres}`;
+        failed.push(file);
+        addBatchLog('info', `${file.name}: se parece mucho a la planilla de ${dupImg.miembro.nombres} — pasa a revisión manual`);
+        continue;
+      }
+
+      // 2) Lectura con IA
       const extracted = await extractFromImage(dataUrl);
       const member = memberFromExtracted(extracted);
       if (!member.nombres) throw new Error('no se pudo leer el nombre');
+      member.planillaHash = huella.sha;
+      member.planillaPhash = huella.phash;
 
-      // Omite duplicados por cédula
-      const ciDigits = member.ci.replace(/\D/g, '');
-      if (ciDigits && MEMBERS.some(x => (x.ci || '').replace(/\D/g, '') === ciDigits)) {
+      // 3) ¿Ya existe la persona? Misma cédula → se omite; mismo nombre y
+      //    fecha de nacimiento (sin cédula) → revisión manual
+      const dupPersona = buscarPersonaDuplicada(member, creados);
+      if (dupPersona && dupPersona.motivo === 'cedula') {
         skipped++;
         addBatchLog('warn', `${member.nombres} ya existe (C.I. ${member.ci}) — omitida`);
+        continue;
+      }
+      if (dupPersona) {
+        revisar++;
+        file._aviso = `Ya hay un miembro llamado ${dupPersona.miembro.nombres} con la misma fecha de nacimiento`;
+        failed.push(file);
+        addBatchLog('info', `${member.nombres}: ya hay un miembro con ese nombre y fecha de nacimiento — pasa a revisión manual`);
         continue;
       }
 
       member.foto = await cropPhotoFromBox(dataUrl, boxFromExtracted(extracted));
       const newId = await dbPut(member);
+      member.id = newId;
+      creados.push(member);
       createdIds.push(newId);
       await refreshMembers();
       saved++;
@@ -894,10 +1128,12 @@ async function runBatch() {
 
   renderDashboard();
   $('#batchTitle').textContent = 'Lote completado';
+  const conError = failed.length - revisar;
   $('#batchStatus').textContent =
     `${saved} miembro(s) creados` +
     (skipped ? ` · ${skipped} duplicado(s) omitidos` : '') +
-    (failed.length ? ` · ${failed.length} con error (puedes revisarlas manualmente)` : '');
+    (revisar ? ` · ${revisar} posible(s) duplicado(s) para revisar` : '') +
+    (conError > 0 ? ` · ${conError} con error (puedes revisarlas manualmente)` : '');
   $('#batchActions').classList.remove('hidden');
   $('#btnBatchReviewFailed').classList.toggle('hidden', !failed.length);
   const btnCarnets = $('#btnBatchCarnets');
@@ -955,6 +1191,21 @@ async function processNext() {
   // Imagen a resolución alta para el recorte y la IA
   const dataUrl = await resizeImage(file, 2000, 0.9);
   state.planillaDataUrl = dataUrl;
+  state.huella = await huellaPlanilla(file, dataUrl);
+
+  // ¿Esta imagen ya fue registrada? Se pregunta antes de gastar la lectura de IA
+  const dup = buscarPlanillaDuplicada(state.huella);
+  if (dup) {
+    const texto = dup.motivo === 'exacta'
+      ? `Esta imagen es exactamente la misma planilla con la que se registró a ${dup.miembro.nombres}.`
+      : `Esta imagen se parece mucho a la planilla con la que se registró a ${dup.miembro.nombres}.`;
+    if (!confirm(texto + '\n\n¿Quieres revisarla de todas formas?\n(Cancelar = omitir esta planilla)')) {
+      toast('Planilla omitida: ya estaba registrada', 'err');
+      return processNext();
+    }
+  } else if (file._aviso) {
+    toast(file._aviso + '. Revisa bien antes de guardar.', 'err', 7000);
+  }
 
   if (hasAI()) {
     showStep('processing');
@@ -981,6 +1232,7 @@ async function processNext() {
 $('#btnManual').addEventListener('click', () => {
   state.planillaDataUrl = null;
   state.fotoDataUrl = null;
+  state.huella = null;
   renderPhotoPreview();
   fillForm({});
   $('#reviewTitle').textContent = 'Registro manual';
@@ -1151,13 +1403,20 @@ $('#memberForm').addEventListener('submit', async (e) => {
   const member = { fechaRegistro: new Date().toISOString(), estado: 'Activo' };
   FIELD_KEYS.forEach(k => { member[k] = (form.elements[k]?.value || '').trim(); });
   member.foto = state.fotoDataUrl || null;
+  if (state.huella) {
+    member.planillaHash = state.huella.sha;
+    member.planillaPhash = state.huella.phash;
+  }
 
   if (!member.nombres) { toast('El nombre es obligatorio', 'err'); return; }
 
-  // Aviso si ya existe un miembro con la misma cédula
-  const ciDigits = member.ci.replace(/\D/g, '');
-  if (ciDigits && MEMBERS.some(x => (x.ci || '').replace(/\D/g, '') === ciDigits)) {
-    if (!confirm(`Ya existe un miembro con la cédula ${member.ci}. ¿Guardar de todas formas?`)) return;
+  // Aviso si ya existe la persona (misma cédula, o mismo nombre y fecha de nacimiento)
+  const dup = buscarPersonaDuplicada(member);
+  if (dup) {
+    const texto = dup.motivo === 'cedula'
+      ? `Ya existe un miembro con la cédula ${member.ci} (${dup.miembro.nombres}).`
+      : `Ya existe un miembro llamado ${dup.miembro.nombres} con la misma fecha de nacimiento.`;
+    if (!confirm(texto + ' ¿Guardar de todas formas?')) return;
   }
 
   savingMember = true;
@@ -1165,6 +1424,7 @@ $('#memberForm').addEventListener('submit', async (e) => {
   btn.disabled = true;
   try {
     await dbPut(member);
+    state.huella = null;
     await refreshMembers();
     toast(`${member.nombres} guardado en la base de datos`);
     renderDashboard();
@@ -1562,6 +1822,7 @@ $('#editForm').addEventListener('submit', async (e) => {
   m.ci = fmtCI(m.ci);
   m.telefono = fmtTel(m.telefono);
   m.estado = form.elements.estado.value;
+  if (m.foto !== editPhoto) m._fotoAnterior = m.foto; // para borrar la vieja de Storage
   m.foto = editPhoto;
   await dbPut(m);
   await refreshMembers();
@@ -1597,14 +1858,39 @@ $('#importFileInput').addEventListener('change', async (e) => {
     const data = JSON.parse(await f.text());
     const list = data.miembros || data;
     if (!Array.isArray(list)) throw new Error('Formato inválido');
+    if (!confirm(`El respaldo tiene ${list.length} miembro(s).\n\nLos que ya existan (misma cédula, o mismo nombre y fecha de nacimiento) se actualizarán con los datos del respaldo; el resto se agregará como nuevos. No se crean duplicados.\n\n¿Continuar?`)) {
+      e.target.value = '';
+      return;
+    }
+    let nuevos = 0, actualizados = 0, errores = 0;
+    const agregados = []; // restaurados en esta pasada (por si el respaldo trae repetidos)
     for (const m of list) {
-      delete m.id; // evitar choques de id
-      await dbPut(m);
+      const rec = { ...m };
+      delete rec.id;
+      // Empareja con un miembro existente: por id (si el respaldo salió de esta
+      // misma base y el nombre coincide), por cédula, o por nombre + fecha
+      const porId = m.id != null && MEMBERS.find(x => x.id === m.id && nombreClave(x.nombres) === nombreClave(m.nombres));
+      const existente = porId || buscarPersonaDuplicada(rec, agregados)?.miembro;
+      if (existente) {
+        rec.id = existente.id;
+        if (!rec.foto && existente.foto) rec.foto = existente.foto; // no borrar una foto que el respaldo no trae
+      }
+      try {
+        const id = await dbPut(rec);
+        if (existente) actualizados++;
+        else { nuevos++; agregados.push({ ...rec, id }); }
+      } catch (err) {
+        errores++;
+        console.warn('No se pudo restaurar:', m.nombres, err.message);
+      }
     }
     await refreshMembers();
     renderMembersTable();
     renderDashboard();
-    toast(`${list.length} miembro(s) restaurados`);
+    toast(
+      `Restauración: ${nuevos} nuevo(s), ${actualizados} actualizado(s)` + (errores ? `, ${errores} con error` : ''),
+      errores ? 'err' : 'ok', 7000
+    );
   } catch (err) {
     toast('No se pudo restaurar: ' + err.message, 'err');
   }
@@ -1784,11 +2070,25 @@ $('#btnFotosDescargar').addEventListener('click', async () => {
   if (!sel.length) return;
   toast(`Descargando ${sel.length} foto(s)…`);
   for (const m of sel) {
-    const ext = ((m.foto.match(/^data:image\/(\w+)/) || [])[1] || 'png').replace('jpeg', 'jpg');
+    let href = m.foto, ext = 'jpg';
+    if (esFotoBase64(m.foto)) {
+      ext = ((m.foto.match(/^data:image\/(\w+)/) || [])[1] || 'png').replace('jpeg', 'jpg');
+    } else {
+      // Foto en Storage: se baja como archivo para que el navegador la guarde en vez de abrirla
+      try {
+        const blob = await (await fetch(m.foto)).blob();
+        ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+        href = URL.createObjectURL(blob);
+      } catch {
+        toast(`No se pudo descargar la foto de ${m.nombres}`, 'err');
+        continue;
+      }
+    }
     const a = document.createElement('a');
     a.download = `foto_${nombreArchivo(m)}.${ext}`;
-    a.href = m.foto;
+    a.href = href;
     a.click();
+    if (href !== m.foto) setTimeout(() => URL.revokeObjectURL(href), 5000);
     // Pausa breve: evita que el navegador bloquee las descargas múltiples
     await new Promise(r => setTimeout(r, 300));
   }
@@ -2296,7 +2596,8 @@ async function carnetToCanvas(m) {
     const imgs = [...node.querySelectorAll('img')];
     await Promise.all(imgs.map(img => img.complete ? Promise.resolve() :
       new Promise(r => { img.onload = r; img.onerror = r; })));
-    return await html2canvas(node, { scale: 5, backgroundColor: null, logging: false });
+    // useCORS: las fotos ahora viven en Storage (otro dominio)
+    return await html2canvas(node, { scale: 5, backgroundColor: null, logging: false, useCORS: true });
   } finally {
     holder.remove();
   }
@@ -2370,10 +2671,53 @@ function openSettings() {
   $('#setAnio').value = settings.anio;
   $('#setSede').value = settings.sede;
   $('#setRif').value = settings.rif;
+  actualizarBotonMigrar();
   $('#settingsModal').classList.remove('hidden');
 }
 
 $('#btnAjustes').addEventListener('click', openSettings);
+
+/* --- Migración de fotos a Storage (modo nube, una sola vez) ---
+   Muestra el botón solo si quedan miembros con la foto en base64 dentro de la tabla */
+function fotosPorMigrar() {
+  return sb ? MEMBERS.filter(m => m.id > 0 && esFotoBase64(m.foto)) : [];
+}
+
+function actualizarBotonMigrar() {
+  const block = $('#migrarFotosBlock');
+  if (!block) return;
+  const n = fotosPorMigrar().length;
+  block.classList.toggle('hidden', !n);
+  if (n) $('#migrarFotosLabel').textContent = `Mover ${n} foto(s) a Storage`;
+}
+
+$('#btnMigrarFotos')?.addEventListener('click', async () => {
+  if (!sb || OFFLINE) { toast('Se necesita conexión a internet', 'err'); return; }
+  const lista = fotosPorMigrar();
+  if (!lista.length) return;
+  if (!confirm(`Se subirán ${lista.length} foto(s) al almacenamiento de Supabase y en la tabla quedará solo la dirección de cada una. Puedes seguir usando la app mientras tanto.\n\n¿Continuar?`)) return;
+  const btn = $('#btnMigrarFotos');
+  btn.disabled = true;
+  let ok = 0, fallos = 0;
+  for (const [i, m] of lista.entries()) {
+    $('#migrarFotosLabel').textContent = `Subiendo ${i + 1} de ${lista.length}…`;
+    try {
+      const url = await subirFotoStorage(m.foto);
+      const { error } = await sb.from('miembros').update({ foto: url }).eq('id', m.id);
+      if (error) { borrarFotoStorage(url); throw new Error(error.message); }
+      m.foto = url;
+      ok++;
+    } catch (err) {
+      fallos++;
+      console.warn('Migración de foto falló:', m.nombres, err.message);
+    }
+  }
+  btn.disabled = false;
+  await refreshMembers();
+  renderTab(ACTIVE_TAB);
+  actualizarBotonMigrar();
+  toast(`${ok} foto(s) movidas a Storage` + (fallos ? `, ${fallos} con error (vuelve a intentar)` : ''), fallos ? 'err' : 'ok', 7000);
+});
 
 /* --- Renovación anual --- */
 $('#btnRenovar').addEventListener('click', async () => {
@@ -2498,9 +2842,11 @@ if (sb) {
     try {
       if (modoRegistro) {
         // Crear cuenta (requiere el código de invitación de la iglesia)
+        // El código de invitación se valida SOLO en el servidor (trigger en
+        // auth.users): la app no lo conoce, así nadie puede leerlo del código
         const codigo = $('#loginCodigo').value.trim();
-        if (codigo !== (NUBE.codigoInvitacion || 'CCNJ-2026')) {
-          loginMsg('Código de invitación incorrecto. Pídelo al administrador.');
+        if (!codigo) {
+          loginMsg('Escribe el código de invitación de la iglesia.');
           return;
         }
         const { data, error } = await sb.auth.signUp({
@@ -2512,8 +2858,8 @@ if (sb) {
             ? error.message : 'error del servidor';
           loginMsg(/already registered/i.test(msg)
             ? 'Ese correo ya tiene una cuenta. Inicia sesión.'
-            : /database error/i.test(msg)
-              ? 'El servidor rechazó el registro. Verifica el código de invitación o avisa al administrador.'
+            : /database error|invitacion|deshabilitado/i.test(msg)
+              ? 'Código de invitación incorrecto (o el registro está deshabilitado). Pídelo al administrador.'
               : 'No se pudo crear la cuenta: ' + msg);
           return;
         }
@@ -2629,6 +2975,7 @@ async function cargarApp() {
   customizarSelect($('#editForm').elements.estado);
   $('#checkQR').checked = settings.carnetQR !== false;
   checkBackupReminder();
+  mostrarSyncErrores();
   $('#apiKeyWarning').classList.toggle('hidden', hasAI());
   // Permite abrir una pestaña directa con #miembros, #carnets, etc.
   const h = location.hash.slice(1);
