@@ -1,0 +1,9 @@
+{
+  "name": "ccnj-migracion",
+  "private": true,
+  "type": "module",
+  "description": "Restaura el respaldo del Supabase anterior en el proyecto nuevo",
+  "dependencies": {
+    "pg": "8.13.1"
+  }
+}

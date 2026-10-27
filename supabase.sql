@@ -157,6 +157,37 @@ create policy "fotos_borrar" on storage.objects
   for delete to authenticated using (bucket_id = 'fotos');
 
 -- ============================================================
+-- Keep-alive: evita que Supabase pause el proyecto gratuito por
+-- inactividad (lo pausa tras 7 días sin uso). Un cron externo
+-- (Vercel /api/keepalive y GitHub Actions) llama a keepalive()
+-- cada día; la función escribe una fila, así cuenta como uso real
+-- de la base de datos. No expone ningún dato de la membresía.
+-- ============================================================
+create table if not exists public.keepalive (
+  id int primary key default 1 check (id = 1),
+  ultimo timestamptz not null default now(),
+  origen text,
+  total bigint not null default 0
+);
+alter table public.keepalive enable row level security;
+revoke all on public.keepalive from anon, authenticated;
+
+create or replace function public.keepalive(origen text default 'desconocido')
+returns timestamptz
+language sql
+security definer
+set search_path = ''
+as $$
+  insert into public.keepalive (id, ultimo, origen, total)
+    values (1, now(), left(origen, 40), 1)
+    on conflict (id) do update
+      set ultimo = now(), origen = left(excluded.origen, 40), total = public.keepalive.total + 1
+  returning ultimo;
+$$;
+revoke execute on function public.keepalive(text) from public;
+grant execute on function public.keepalive(text) to anon, authenticated;
+
+-- ============================================================
 -- DUPLICADOS EXISTENTES (solo consulta, no modifica nada).
 -- Lista los miembros que comparten cédula para que los corrijas
 -- desde la app antes de crear el índice único.

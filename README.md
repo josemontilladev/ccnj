@@ -11,7 +11,7 @@ mantener la base de datos de la membresía y generar carnets verticales con QR d
 - **Fotos**: bucket `fotos` de Supabase Storage (en la tabla solo queda la URL).
 - **Lectura de planillas**: función serverless `api/extract.js` (Vercel) con Gemini
   y respaldo en OpenRouter. Las claves van en variables de entorno de Vercel:
-  `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+  `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` (la clave publishable).
 - **Esquema de la base de datos**: `supabase.sql` (pegar en el SQL Editor de Supabase).
   Es idempotente: se puede volver a ejecutar cada vez que cambie.
 
@@ -37,6 +37,36 @@ mantener la base de datos de la membresía y generar carnets verticales con QR d
    estaban en base64 dentro de la tabla al bucket y deja la base liviana.
 4. Recomendado en el panel de Supabase: Authentication → Providers → Email → activar
    "Confirm email", para que las cuentas nuevas verifiquen su correo.
+
+## Keep-alive (que Supabase no pause el proyecto)
+
+Supabase pausa los proyectos gratuitos tras 7 días sin uso. Dos crons llaman a la función
+`public.keepalive()` (definida en `supabase.sql`), que escribe una fila en `public.keepalive`:
+
+- **Vercel**: `vercel.json` → `crons` llama a `/api/keepalive` una vez al día.
+  Opcional: define `CRON_SECRET` en Vercel para que nadie más pueda llamar a esa ruta.
+- **GitHub Actions**: `.github/workflows/keepalive.yml` cada 12 horas (respaldo).
+  GitHub desactiva los workflows programados si el repositorio pasa 60 días sin commits;
+  si llega un correo avisándolo, se reactiva en la pestaña Actions.
+
+Para comprobarlo: `select * from public.keepalive;` muestra la última llamada y el total.
+
+## Migración desde el Supabase anterior (respaldo)
+
+El respaldo del proyecto viejo va en `backup/` (ignorado por git: tiene datos personales).
+
+1. `node migracion/generar-sql.mjs backup/<archivo>.backup` crea `backup/sql/` con:
+   cuentas (`01`), esquema (`02`), código de invitación (`03`), miembros en partes (`04_*`)
+   y una consulta de verificación (`99`).
+2. Aplícalos en orden, de una de dos formas:
+   - Automática: `cd migracion && npm install && cd ..` y luego
+     `node migracion/restaurar.mjs "<cadena de conexión>"` (Supabase → Connect → Session pooler).
+   - Manual: pegar cada archivo, en orden, en el SQL Editor de Supabase.
+3. Entra a la app → Ajustes → **Mover fotos a Storage**: las fotos del respaldo vienen en
+   base64 dentro de la tabla y así pasan al bucket.
+
+Las cuentas conservan su contraseña. Cada usuario debe iniciar sesión de nuevo porque la
+sesión guardada pertenece al proyecto anterior.
 
 ## Detección de planillas duplicadas
 

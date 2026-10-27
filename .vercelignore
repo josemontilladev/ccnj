@@ -10,3 +10,6 @@ README.md
 .gitignore
 planillas/
 __pycache__/
+backup/
+migracion/
+.github/
