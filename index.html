@@ -162,12 +162,21 @@
         <div class="dropzone" id="dropzone">
           <div class="dz-inner">
             <div class="dz-icon"><i data-lucide="cloud-upload"></i></div>
-            <h3>Arrastra aquí las fotos de las planillas</h3>
-            <p>Varias a la vez: los miembros se crean automáticamente en lote.<br>Una sola: podrás revisar los datos antes de guardar.</p>
-            <input type="file" id="fileInput" accept="image/*" multiple hidden>
+            <h3>Arrastra aquí las planillas escaneadas</h3>
+            <p>Fotos (JPG, PNG) o PDF del escáner, aunque tengan varias páginas.<br>Varias a la vez: los miembros se crean solos en lote. Una sola: revisas los datos antes de guardar.</p>
+            <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" multiple hidden>
           </div>
         </div>
         <div id="queueInfo" class="queue-info hidden"></div>
+        <details class="consejos">
+          <summary>Consejos para escanear muchas planillas</summary>
+          <ul>
+            <li>Una planilla por página, derecha y completa, con buena luz y sin sombras.</li>
+            <li>Escanea a 200 o 300 ppp en color: la foto del miembro sale mejor para el carnet.</li>
+            <li>Puedes subir tandas grandes. Si una planilla ya está registrada, se omite sola, así que no pasa nada si repites archivos.</li>
+            <li>Deja esta pestaña abierta mientras se procesa el lote. Puedes detenerlo y seguir después.</li>
+          </ul>
+        </details>
       </div>
 
       <!-- Paso 1b: procesamiento en lote -->
@@ -177,7 +186,9 @@
           <h3 id="batchTitle">Procesando planillas…</h3>
           <div class="batch-bar"><div class="batch-bar-fill" id="batchBarFill"></div></div>
           <p id="batchStatus" class="batch-status"></p>
+          <div id="batchCuentas" class="batch-cuentas"></div>
           <div id="batchLog" class="batch-log"></div>
+          <button class="btn btn-ghost" id="btnBatchStop" type="button"><i data-lucide="pause"></i> Detener después de las que se están leyendo</button>
           <div id="batchActions" class="batch-actions hidden">
             <button class="btn btn-ghost" id="btnBatchReviewFailed"><i data-lucide="pen-line"></i> Revisar fallidas</button>
             <button class="btn btn-ghost" id="btnBatchDone"><i data-lucide="users"></i> Ver miembros</button>

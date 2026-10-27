@@ -414,7 +414,7 @@ svg.lucide {
   border-radius: 99px;
   transition: width .3s ease;
 }
-.batch-status { color: var(--gris); font-size: 13.5px; }
+.batch-status { color: var(--gris); font-size: 15px; }
 .batch-log {
   max-width: 520px;
   margin: 16px auto 0;
@@ -426,6 +426,22 @@ svg.lucide {
   padding: 8px 4px;
 }
 .batch-log:empty { display: none; }
+.batch-cuentas { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; margin: 10px 0 4px; font-size: 14px; color: var(--gris); }
+.batch-cuentas b { font-variant-numeric: tabular-nums; font-size: 15px; }
+.batch-cuentas .cuenta-ok b { color: var(--verde); }
+.batch-cuentas .cuenta-warn b { color: #8a6d00; }
+.batch-cuentas .cuenta-info b { color: var(--azul); }
+.batch-cuentas .cuenta-err b { color: #c62828; }
+.batch-cuentas .cuenta-total { font-weight: 700; color: var(--tinta); }
+#btnBatchStop { margin-top: 14px; }
+
+.consejos {
+  margin-top: 14px;
+  background: var(--blanco); border: 1px solid var(--linea); border-radius: var(--radio);
+  padding: 12px 18px; font-size: 14.5px;
+}
+.consejos summary { cursor: pointer; font-weight: 700; color: var(--azul); }
+.consejos ul { margin: 10px 0 2px 18px; color: #34445f; display: flex; flex-direction: column; gap: 4px; }
 .batch-line {
   font-size: 13px;
   padding: 5px 12px;

@@ -131,6 +131,14 @@ module.exports = async (req, res) => {
     }
     return res.status(200).json(out);
   } catch (err) {
-    return res.status(500).json({ error: 'No se pudo leer la planilla: ' + err.message });
+    // El navegador reintenta solo los errores pasajeros (429 y 503)
+    const msg = String(err.message || err);
+    const status = /HTTP 429/.test(msg) ? 429
+      : /HTTP 5\d\d|fetch failed|ECONN|ETIMEDOUT|no disponible/i.test(msg) ? 503
+      : 422;
+    const texto = status === 429 ? 'La IA alcanzó su límite de lecturas por minuto'
+      : status === 503 ? 'La IA no respondió'
+      : 'No se pudo leer la planilla';
+    return res.status(status).json({ error: texto + ' (' + msg + ')' });
   }
 };

@@ -1,5 +1,8 @@
 {
   "cleanUrls": true,
+  "functions": {
+    "api/extract.js": { "maxDuration": 60 }
+  },
   "crons": [
     { "path": "/api/keepalive", "schedule": "0 13 * * *" }
   ],

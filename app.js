@@ -113,7 +113,8 @@ function resizeImage(src, maxDim, quality = 0.88) {
       cv.getContext('2d').drawImage(img, 0, 0, w, h);
       resolve(cv.toDataURL('image/jpeg', quality));
     };
-    img.onerror = reject;
+    img.onerror = () => reject(new Error(
+      'no se pudo abrir la imagen (formato no compatible; guárdala como JPG o PDF)'));
     if (src instanceof File) {
       const fr = new FileReader();
       fr.onload = () => { img.src = fr.result; };
@@ -813,23 +814,10 @@ Reglas:
 - "funcion" corresponde a la pregunta "¿Ejerce usted alguna función en la iglesia y desde cuándo?" — extrae solo el nombre de la función (ej: "Supervisora de Evangelismo"), sin la fecha.
 - "foto_ymin", "foto_xmin", "foto_ymax", "foto_xmax": coordenadas del recuadro donde está la FOTOGRAFÍA del rostro de la persona pegada o impresa en la planilla, normalizadas de 0 a 1000 respecto a la imagen completa (ymin = borde superior, xmin = izquierdo, ymax = inferior, xmax = derecho), como cadenas numéricas (ej: "150"). Ajusta el recuadro solo a la fotografía, sin incluir texto alrededor. Si no hay fotografía, devuelve cadenas vacías en las cuatro.`;
 
-async function extractFromImage(dataUrl) {
+async function extractFromImage(dataUrl, onEspera) {
   // Publicado en la nube: el servidor lee la planilla (las claves no viajan al navegador)
   if (sb && location.protocol !== 'file:') {
-    const { data: { session } } = await sb.auth.getSession();
-    const res = await fetch('/api/extract', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'authorization': 'Bearer ' + (session?.access_token || '')
-      },
-      body: JSON.stringify({ image: dataUrl })
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      throw new Error(j.error || ('Error del servidor (' + res.status + ')'));
-    }
-    return cleanExtracted(await res.json());
+    return cleanExtracted(await extraerEnServidor(dataUrl, onEspera));
   }
 
   // Orden de prioridad; si un proveedor falla, se intenta el siguiente
@@ -850,6 +838,49 @@ async function extractFromImage(dataUrl) {
     }
   }
   throw lastErr;
+}
+
+/* Lee la planilla en /api/extract. Reintenta cuando el fallo es pasajero
+   (límite de lecturas por minuto de la IA, servidor ocupado, sin conexión
+   momentánea), con esperas crecientes; los errores definitivos no se repiten. */
+const ESPERAS_REINTENTO = [5000, 15000, 40000];
+async function extraerEnServidor(dataUrl, onEspera) {
+  let ultimo = null;
+  for (let intento = 0; intento <= ESPERAS_REINTENTO.length; intento++) {
+    try {
+      let { data: { session } } = await sb.auth.getSession();
+      let res = await llamarExtract(dataUrl, session);
+      if (res.status === 401 && intento === 0) {
+        // La sesión pudo vencer durante un lote largo: se renueva una vez
+        ({ data: { session } } = await sb.auth.refreshSession());
+        res = await llamarExtract(dataUrl, session);
+      }
+      if (res.ok) return await res.json();
+      const j = await res.json().catch(() => ({}));
+      const err = new Error(j.error || ('Error del servidor (' + res.status + ')'));
+      err.pasajero = res.status === 429 || res.status >= 500;
+      throw err;
+    } catch (err) {
+      if (err.pasajero === undefined) err.pasajero = esErrorRed(err);
+      ultimo = err;
+      if (!err.pasajero || intento === ESPERAS_REINTENTO.length) break;
+      const ms = ESPERAS_REINTENTO[intento];
+      if (onEspera) onEspera(ms, intento + 1);
+      await new Promise(r => setTimeout(r, ms));
+    }
+  }
+  throw ultimo;
+}
+
+function llamarExtract(dataUrl, session) {
+  return fetch('/api/extract', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': 'Bearer ' + (session?.access_token || '')
+    },
+    body: JSON.stringify({ image: dataUrl })
+  });
 }
 
 /* Valores devueltos por la IA → objeto con todas las claves como texto */
@@ -1074,14 +1105,75 @@ dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.clas
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
 dropzone.addEventListener('drop', (e) => {
   e.preventDefault(); dropzone.classList.remove('drag');
-  addToQueue([...e.dataTransfer.files].filter(f => f.type.startsWith('image/')));
+  addToQueue([...e.dataTransfer.files]);
 });
 fileInput.addEventListener('change', () => {
   addToQueue([...fileInput.files]);
   fileInput.value = '';
 });
 
-function addToQueue(files) {
+const esPDF = (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+const esImagen = (f) => f.type.startsWith('image/') || /\.(jpe?g|png|webp)$/i.test(f.name);
+
+/* pdf.js se carga solo cuando alguien sube un PDF */
+let pdfjsListo = null;
+function cargarPdfJs() {
+  if (!pdfjsListo) {
+    pdfjsListo = new Promise((resolve, reject) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      sc.onload = () => {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      };
+      sc.onerror = () => { pdfjsListo = null; reject(new Error('no se pudo cargar el lector de PDF (revisa la conexión)')); };
+      document.head.appendChild(sc);
+    });
+  }
+  return pdfjsListo;
+}
+
+/* Convierte cada página del PDF en una imagen JPG (una planilla por página) */
+async function paginasDePDF(file) {
+  const pdfjs = await cargarPdfJs();
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const base = file.name.replace(/\.pdf$/i, '');
+  const paginas = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n);
+    const v1 = page.getViewport({ scale: 1 });
+    const viewport = page.getViewport({ scale: Math.min(4, 2200 / Math.max(v1.width, v1.height)) });
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(viewport.width); cv.height = Math.round(viewport.height);
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92));
+    paginas.push(new File([blob], pdf.numPages > 1 ? `${base} (pág. ${n}).jpg` : `${base}.jpg`, { type: 'image/jpeg' }));
+    page.cleanup();
+  }
+  return paginas;
+}
+
+async function addToQueue(entrada) {
+  const files = [];
+  const descartados = [];
+  const pdfs = entrada.filter(esPDF);
+  if (pdfs.length) toast(`Abriendo ${pdfs.length} PDF…`);
+  for (const f of entrada) {
+    if (esPDF(f)) {
+      try { files.push(...await paginasDePDF(f)); }
+      catch (err) { descartados.push(`${f.name}: ${err.message}`); }
+    } else if (esImagen(f)) {
+      files.push(f);
+    } else {
+      descartados.push(`${f.name}: formato no compatible (usa JPG, PNG o PDF)`);
+    }
+  }
+  if (descartados.length) {
+    toast(descartados.slice(0, 2).join('. ') + (descartados.length > 2 ? ` (y ${descartados.length - 2} más)` : ''), 'err', 8000);
+  }
   if (!files.length) return;
   state.queue.push(...files);
   // Solo arranca el procesamiento si no hay una planilla en revisión
@@ -1146,98 +1238,213 @@ function addBatchLog(tipo, texto) {
   $('#batchLog').scrollTop = $('#batchLog').scrollHeight;
 }
 
+/* Lectura en lote: dos planillas a la vez (la IA tarda varios segundos por
+   planilla). Las comprobaciones de duplicados se hacen sin pausas entre la
+   consulta y el registro, así dos planillas de la misma persona que se lean
+   a la vez no crean dos miembros. */
+const LOTE_PARALELO = 2;
+const lote = { activo: false, detener: false, wakeLock: null };
+
+function avisoSalidaLote(e) {
+  if (!lote.activo) return;
+  e.preventDefault();
+  e.returnValue = 'Hay planillas procesándose. Si sales se detiene el lote.';
+}
+window.addEventListener('beforeunload', avisoSalidaLote);
+
+/* Evita que la pantalla se apague durante un lote largo (si el equipo lo permite) */
+async function pedirPantallaEncendida() {
+  try { lote.wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (lote.activo && document.visibilityState === 'visible') pedirPantallaEncendida();
+});
+
+$('#btnBatchStop').addEventListener('click', () => {
+  lote.detener = true;
+  $('#btnBatchStop').disabled = true;
+  $('#btnBatchStop').innerHTML = '<i data-lucide="loader"></i> Deteniendo…';
+  refreshIcons();
+});
+
+/* Vincula al miembro nuevo con la persona de un equipo de cosecha que tiene
+   su nombre y aún no tiene ficha. Solo si hay una única coincidencia clara:
+   todas las palabras del nombre del equipo están en el nombre completo. */
+async function vincularConEquipo(member) {
+  const palabras = (t) => norm(t).split(/[^a-z]+/).filter(w => w && !['de', 'del', 'la', 'los'].includes(w));
+  const delMiembro = palabras(member.nombres);
+  const encaja = (w) => delMiembro.some(x => x === w || (w.length >= 4 && x.startsWith(w)) || (w.length === 1 && x.startsWith(w)));
+  const candidatos = [];
+  for (const eq of EQUIPOS) {
+    (eq.integrantes || []).forEach((p, i) => {
+      if (p.miembroId != null) return;
+      const ps = palabras(p.nombre);
+      // Con una sola palabra ("Angi") hace falta que sea el primer nombre exacto
+      const ok = ps.length >= 2 ? ps.every(encaja) : ps.length === 1 && delMiembro[0] === ps[0];
+      if (ok) candidatos.push({ eq, i });
+    });
+  }
+  if (candidatos.length !== 1) return null;
+  const { eq, i } = candidatos[0];
+  const integrantes = eq.integrantes.map((p, k) => k === i ? { ...p, miembroId: member.id } : p);
+  try {
+    await guardarEquipo({ ...eq, integrantes });
+    return { rol: integrantes[i].rol, equipo: nombreEquipo(eq) };
+  } catch { return null; }
+}
+
 async function runBatch() {
-  const total = state.queue.length;
+  if (lote.activo) return; // ya hay un lote corriendo: los archivos nuevos entran a su cola
+  lote.activo = true;
+  lote.detener = false;
+  pedirPantallaEncendida();
+
   const failed = [];      // con error o que requieren revisión manual
   const createdIds = [];
   const creados = [];     // miembros creados en esta pasada (para detectar duplicados entre sí)
-  let done = 0, saved = 0, skipped = 0, revisar = 0;
+  const enCurso = new Set(); // huellas SHA que se están leyendo ahora mismo
+  const c = { leidas: 0, saved: 0, skipped: 0, revisar: 0, error: 0, equipos: 0 };
+  let totalVisto = state.queue.length;
 
   showStep('batch');
   $('#batchTitle').textContent = 'Procesando planillas…';
   $('#batchLog').innerHTML = '';
   $('#batchActions').classList.add('hidden');
+  $('#btnBatchStop').classList.remove('hidden');
+  $('#btnBatchStop').disabled = false;
+  $('#btnBatchStop').innerHTML = '<i data-lucide="pause"></i> Detener después de las que se están leyendo';
+  refreshIcons();
   updateQueueInfo();
 
-  while (state.queue.length) {
-    const file = state.queue.shift();
-    done++;
-    $('#batchBarFill').style.width = Math.round((done - 1) / total * 100) + '%';
-    $('#batchStatus').textContent = `Leyendo ${done} de ${total}: ${file.name}`;
+  const pintar = (texto) => {
+    totalVisto = Math.max(totalVisto, c.leidas + state.queue.length + enCurso.size);
+    $('#batchBarFill').style.width = Math.round(c.leidas / Math.max(1, totalVisto) * 100) + '%';
+    if (texto) $('#batchStatus').textContent = texto;
+    $('#batchCuentas').innerHTML = [
+      ['ok', c.saved, 'creados'], ['warn', c.skipped, 'omitidos por duplicado'],
+      ['info', c.revisar, 'para revisar'], ['err', c.error, 'con error']
+    ].map(([t, n, l]) => `<span class="cuenta-${t}"><b>${n}</b> ${l}</span>`).join('') +
+      `<span class="cuenta-total">${c.leidas} de ${totalVisto}</span>`;
+  };
+  pintar('Preparando…');
+
+  async function procesar(file) {
+    let huella = null;
     try {
       const dataUrl = await resizeImage(file, 2000, 0.9);
 
       // 1) ¿Es la misma imagen de una planilla ya registrada? (se decide sin gastar IA)
-      const huella = await huellaPlanilla(file, dataUrl);
+      huella = await huellaPlanilla(file, dataUrl);
+      if (huella.sha && enCurso.has(huella.sha)) {
+        c.skipped++;
+        addBatchLog('warn', `${file.name}: es la misma imagen que otra del lote — omitida`);
+        huella = null;
+        return;
+      }
       const dupImg = buscarPlanillaDuplicada(huella, creados);
       if (dupImg && dupImg.motivo === 'exacta') {
-        skipped++;
+        c.skipped++;
         addBatchLog('warn', `${file.name}: es la misma imagen de la planilla de ${dupImg.miembro.nombres} — omitida`);
-        continue;
+        return;
       }
       if (dupImg) {
-        revisar++;
+        c.revisar++;
         file._aviso = `Esta imagen se parece mucho a la planilla de ${dupImg.miembro.nombres}`;
         failed.push(file);
         addBatchLog('info', `${file.name}: se parece mucho a la planilla de ${dupImg.miembro.nombres} — pasa a revisión manual`);
-        continue;
+        return;
       }
+      if (huella.sha) enCurso.add(huella.sha);
 
-      // 2) Lectura con IA
-      const extracted = await extractFromImage(dataUrl);
+      // 2) Lectura con IA (con reintentos si la IA está ocupada)
+      const extracted = await extractFromImage(dataUrl, (ms, n) =>
+        addBatchLog('info', `${file.name}: la IA está ocupada, reintento ${n} en ${Math.round(ms / 1000)} s`));
       const member = memberFromExtracted(extracted);
       if (!member.nombres) throw new Error('no se pudo leer el nombre');
       member.planillaHash = huella.sha;
       member.planillaPhash = huella.phash;
+      member.foto = await cropPhotoFromBox(dataUrl, boxFromExtracted(extracted));
 
       // 3) ¿Ya existe la persona? Misma cédula → se omite; mismo nombre y
-      //    fecha de nacimiento (sin cédula) → revisión manual
+      //    fecha de nacimiento (sin cédula) → revisión manual.
+      //    Sin "await" entre la comprobación y el registro en "creados".
       const dupPersona = buscarPersonaDuplicada(member, creados);
       if (dupPersona && dupPersona.motivo === 'cedula') {
-        skipped++;
+        c.skipped++;
         addBatchLog('warn', `${member.nombres} ya existe (C.I. ${member.ci}) — omitida`);
-        continue;
+        return;
       }
       if (dupPersona) {
-        revisar++;
+        c.revisar++;
         file._aviso = `Ya hay un miembro llamado ${dupPersona.miembro.nombres} con la misma fecha de nacimiento`;
         failed.push(file);
         addBatchLog('info', `${member.nombres}: ya hay un miembro con ese nombre y fecha de nacimiento — pasa a revisión manual`);
-        continue;
+        return;
       }
-
-      member.foto = await cropPhotoFromBox(dataUrl, boxFromExtracted(extracted));
-      const newId = await dbPut(member);
-      member.id = newId;
       creados.push(member);
-      createdIds.push(newId);
-      await refreshMembers();
-      saved++;
-      addBatchLog('ok', `${member.nombres}${member.foto ? '' : ' (sin foto detectada)'}`);
+
+      try {
+        member.id = await dbPut(member);
+      } catch (err) {
+        creados.splice(creados.indexOf(member), 1);
+        throw err;
+      }
+      createdIds.push(member.id);
+      c.saved++;
+      const v = await vincularConEquipo(member);
+      if (v) c.equipos++;
+      addBatchLog('ok', `${member.nombres}${member.foto ? '' : ' (sin foto detectada)'}` +
+        (v ? ` — vinculado como ${v.rol} en el ${v.equipo}` : ''));
     } catch (err) {
+      c.error++;
       failed.push(file);
       addBatchLog('err', `${file.name}: ${err.message}`);
+    } finally {
+      if (huella?.sha) enCurso.delete(huella.sha);
+      c.leidas++;
+      pintar();
     }
-    $('#batchBarFill').style.width = Math.round(done / total * 100) + '%';
   }
 
+  async function trabajador() {
+    while (state.queue.length && !lote.detener) {
+      const file = state.queue.shift();
+      updateQueueInfo();
+      pintar(`Leyendo: ${file.name}`);
+      await procesar(file);
+    }
+  }
+  await Promise.all(Array.from({ length: LOTE_PARALELO }, trabajador));
+
+  // Los datos se recargan una sola vez al final (no después de cada planilla)
+  try { await refreshMembers(); } catch {}
   renderDashboard();
-  $('#batchTitle').textContent = 'Lote completado';
-  const conError = failed.length - revisar;
-  $('#batchStatus').textContent =
-    `${saved} miembro(s) creados` +
-    (skipped ? ` · ${skipped} duplicado(s) omitidos` : '') +
-    (revisar ? ` · ${revisar} posible(s) duplicado(s) para revisar` : '') +
-    (conError > 0 ? ` · ${conError} con error (puedes revisarlas manualmente)` : '');
+  lote.activo = false;
+  try { await lote.wakeLock?.release(); } catch {}
+  lote.wakeLock = null;
+
+  const pendientes = state.queue.length; // si se detuvo antes de terminar
+  $('#batchTitle').textContent = lote.detener && pendientes ? 'Lote detenido' : 'Lote completado';
+  $('#btnBatchStop').classList.add('hidden');
+  pintar(
+    `${c.saved} miembro(s) creados` +
+    (c.equipos ? `, ${c.equipos} vinculados a su equipo de cosecha` : '') +
+    (c.revisar + c.error ? `. ${c.revisar + c.error} planilla(s) para revisar a mano.` : '.') +
+    (pendientes ? ` Quedan ${pendientes} sin leer: súbelas de nuevo cuando quieras.` : '')
+  );
   $('#batchActions').classList.remove('hidden');
   $('#btnBatchReviewFailed').classList.toggle('hidden', !failed.length);
+  $('#btnBatchReviewFailed').innerHTML = `<i data-lucide="pen-line"></i> Revisar a mano (${failed.length})`;
   const btnCarnets = $('#btnBatchCarnets');
   btnCarnets.classList.toggle('hidden', !createdIds.length);
   btnCarnets.dataset.ids = createdIds.join(',');
   btnCarnets.innerHTML = `<i data-lucide="id-card"></i> Generar carnets (${createdIds.length})`;
+  // Las que se detuvieron sin leer se descartan (se vuelven a subir); las fallidas quedan para revisar
+  state.queue.length = 0;
   state.queue.push(...failed);
+  updateQueueInfo();
   refreshIcons();
-  if (saved) toast(`${saved} miembro(s) creados en lote`);
+  if (c.saved) toast(`${c.saved} miembro(s) creados en lote`);
 }
 
 /* Salta a Carnets con los miembros recién creados ya seleccionados */
