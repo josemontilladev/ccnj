@@ -501,6 +501,7 @@ function renderTab(name) {
   if (name === 'inicio') renderDashboard();
   if (name === 'miembros') renderMembersTable();
   if (name === 'carnets') renderCarnetList();
+  if (name === 'equipos') renderEquipos();
   if (name === 'registrar') $('#apiKeyWarning').classList.toggle('hidden', hasAI());
 }
 
@@ -531,7 +532,7 @@ function renderDashboard() {
   $('#statTotal2').textContent = total;
   $('#statActivos').textContent = MEMBERS.filter(m => m.estado !== 'Inactivo').length;
   $('#statFoto').textContent = conFoto;
-  $('#statFuncion').textContent = MEMBERS.filter(m => (m.funcion || '').trim()).length;
+  $('#statFuncion').textContent = MEMBERS.filter(m => funcionMostrada(m)).length;
   const pct = total ? Math.round(conFoto / total * 100) : 0;
   $('#statPct').textContent = pct + '%';
   $('#barraFoto').style.width = pct + '%';
@@ -556,7 +557,7 @@ function renderDashboard() {
       <div class="avatar">${m.foto ? `<img src="${m.foto}" alt="">` : esc(initials(m.nombres))}</div>
       <div>
         <div class="recent-name">${esc(m.nombres)}</div>
-        <div class="recent-sub">${esc(m.funcion || 'Miembro')} ${m.ci ? '· C.I. ' + esc(fmtCI(m.ci)) : ''}</div>
+        <div class="recent-sub">${esc(funcionMostrada(m) || 'Miembro')} ${m.ci ? '· C.I. ' + esc(fmtCI(m.ci)) : ''}</div>
       </div>
       <div class="recent-date">${fmtDate(m.fechaRegistro)}</div>
     </div>
@@ -611,7 +612,7 @@ function renderPendientesDatos() {
 function renderFunciones() {
   const cuenta = new Map();
   MEMBERS.filter(m => m.estado !== 'Inactivo').forEach(m => {
-    const f = (m.funcion || '').trim() || 'Miembro';
+    const f = funcionMostrada(m) || 'Miembro';
     const clave = norm(f);
     const prev = cuenta.get(clave);
     cuenta.set(clave, { nombre: prev?.nombre || f, n: (prev?.n || 0) + 1 });
@@ -1546,7 +1547,7 @@ $('#btnCancelReview').addEventListener('click', () => {
    ============================================================ */
 function memberMatches(m, q) {
   if (!q) return true;
-  const hay = norm([m.nombres, m.ci, m.telefono, m.funcion, m.correo, m.direccion].join(' '));
+  const hay = norm([m.nombres, m.ci, m.telefono, m.funcion, funcionMostrada(m), m.correo, m.direccion].join(' '));
   if (hay.includes(norm(q))) return true;
   // Cédulas y teléfonos: busca también solo por dígitos (con o sin puntos/guiones)
   const qd = q.replace(/\D/g, '');
@@ -1631,7 +1632,7 @@ function mesNacimiento(t) {
 }
 
 function matchAvanzado(m) {
-  if (FILTROS.funcion && (m.funcion || '').trim() !== FILTROS.funcion) return false;
+  if (FILTROS.funcion && funcionMostrada(m) !== FILTROS.funcion) return false;
   if (FILTROS.foto === 'si' && !m.foto) return false;
   if (FILTROS.foto === 'no' && m.foto) return false;
   if (FILTROS.falta && String(m[FILTROS.falta] || '').trim()) return false;
@@ -1658,7 +1659,7 @@ function llenarOpcionesFiltros() {
       valores.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
     el.value = valores.includes(actual) ? actual : '';
   };
-  const funciones = [...new Set(MEMBERS.map(m => (m.funcion || '').trim()).filter(Boolean))].sort();
+  const funciones = [...new Set(MEMBERS.map(m => funcionMostrada(m)).filter(Boolean))].sort();
   const aniosReg = [...new Set(MEMBERS.map(m => m.fechaRegistro ? String(new Date(m.fechaRegistro).getFullYear()) : '').filter(Boolean))].sort();
   const aniosConv = [...new Set(MEMBERS.map(m => anioEnTexto(m.recibioCristo)).filter(Boolean))].sort();
   llenar('#fFuncion', funciones);
@@ -1736,7 +1737,7 @@ function renderMembersTable() {
       <td class="td-name">${esc(m.nombres)}</td>
       <td>${esc(fmtCI(m.ci) || '—')}</td>
       <td>${esc(fmtTel(m.telefono) || '—')}</td>
-      <td>${m.funcion ? `<span class="badge">${esc(m.funcion)}</span>` : '<span class="badge badge-empty">Miembro</span>'}</td>
+      <td>${badgeFuncion(m)}</td>
       <td>
         ${m.estado === 'Inactivo'
           ? '<span class="badge badge-inactivo">Inactivo</span>'
@@ -1833,10 +1834,11 @@ function openViewModal(m) {
           <div class="view-photo">${foto}</div>
           <div>
             <div class="view-name">${esc(m.nombres)}</div>
-            <div class="view-funcion">${m.funcion
-              ? `<span class="badge">${esc(m.funcion)}</span>`
-              : '<span class="badge badge-empty">Miembro</span>'}
-            </div>
+            <div class="view-funcion">${badgeFuncion(m)}</div>
+            ${(() => {
+              const r = rolEnEquipo(m.id);
+              return r ? `<div class="view-equipo">${r.rol === 'Líder' ? 'Líder del' : 'Colaborador en el'} ${esc(nombreEquipo(r.equipo))}</div>` : '';
+            })()}
             <div class="view-date">Registrado: ${fmtDate(m.fechaRegistro)}</div>
           </div>
         </div>
@@ -1970,7 +1972,7 @@ function downloadFile(name, content, type) {
 
 $('#btnExportJSON').addEventListener('click', () => {
   downloadFile(`respaldo_membresia_cfnj_${new Date().toISOString().slice(0,10)}.json`,
-    JSON.stringify({ version: 1, miembros: MEMBERS }, null, 2), 'application/json');
+    JSON.stringify({ version: 2, miembros: MEMBERS, equipos: EQUIPOS }, null, 2), 'application/json');
   localStorage.setItem('cfnj_lastBackup', String(Date.now()));
   $('#backupBanner').classList.add('hidden');
   toast('Respaldo descargado');
@@ -1990,6 +1992,7 @@ $('#importFileInput').addEventListener('change', async (e) => {
     }
     let nuevos = 0, actualizados = 0, errores = 0;
     const agregados = []; // restaurados en esta pasada (por si el respaldo trae repetidos)
+    const idsNuevos = new Map(); // id en el respaldo -> id en esta base (para los equipos)
     for (const m of list) {
       const rec = { ...m };
       delete rec.id;
@@ -2003,6 +2006,7 @@ $('#importFileInput').addEventListener('change', async (e) => {
       }
       try {
         const id = await dbPut(rec);
+        if (m.id != null) idsNuevos.set(m.id, existente ? existente.id : id);
         if (existente) actualizados++;
         else { nuevos++; agregados.push({ ...rec, id }); }
       } catch (err) {
@@ -2010,11 +2014,28 @@ $('#importFileInput').addEventListener('change', async (e) => {
         console.warn('No se pudo restaurar:', m.nombres, err.message);
       }
     }
+    // Equipos de cosecha del respaldo: solo si esta base aún no tiene equipos
+    let equiposMsg = '';
+    if (Array.isArray(data.equipos) && data.equipos.length) {
+      if (EQUIPOS.length) {
+        equiposMsg = '. Los equipos del respaldo no se cargaron porque ya hay equipos';
+      } else {
+        let ok = 0;
+        for (const eq of data.equipos) {
+          const integrantes = (eq.integrantes || []).map(p => ({
+            nombre: p.nombre || '', rol: p.rol === 'Líder' ? 'Líder' : 'Colaborador',
+            miembroId: p.miembroId != null && idsNuevos.has(p.miembroId) ? idsNuevos.get(p.miembroId) : null
+          }));
+          try { await guardarEquipo({ orden: eq.orden || 0, integrantes }); ok++; } catch {}
+        }
+        equiposMsg = `, ${ok} equipo(s) de cosecha`;
+      }
+    }
     await refreshMembers();
     renderMembersTable();
     renderDashboard();
     toast(
-      `Restauración: ${nuevos} nuevo(s), ${actualizados} actualizado(s)` + (errores ? `, ${errores} con error` : ''),
+      `Restauración: ${nuevos} nuevo(s), ${actualizados} actualizado(s)` + (errores ? `, ${errores} con error` : '') + equiposMsg,
       errores ? 'err' : 'ok', 7000
     );
   } catch (err) {
@@ -2027,7 +2048,7 @@ $('#btnExportCSV').addEventListener('click', () => {
   const headers = ['Nombres y apellidos','C.I.','Teléfono','Fecha de nacimiento','Lugar de nacimiento',
     'Estado civil','Correo','Dirección','Ocupación','Profesión','Esposo(a)','Hijos','Padres',
     'Vive con padres','Vive con esposo/hijos','Recibió a Cristo','Bautizo','Tiempo en la Confraternidad',
-    'Función','Estado','Fecha de registro'];
+    'Función','Rol en cosecha','Equipo de cosecha','Estado','Fecha de registro'];
   const cols = ['nombres','ci','telefono','fechaNacimiento','lugarNacimiento','estadoCivil','correo',
     'direccion','ocupacion','profesion','esposo','hijos','padres','viveConPadres','viveConEsposoHijos',
     'recibioCristo','bautizo','tiempoConfraternidad','funcion'];
@@ -2037,7 +2058,8 @@ $('#btnExportCSV').addEventListener('click', () => {
   for (const m of MEMBERS) {
     lines.push([...cols.map(c =>
       q(c === 'ci' ? fmtCI(m.ci) : c === 'telefono' ? fmtTel(m.telefono) : m[c])
-    ), q(m.estado || 'Activo'), q(fmtDate(m.fechaRegistro))].join(';'));
+    ), q(rolEnEquipo(m.id)?.rol || ''), q(rolEnEquipo(m.id) ? nombreEquipo(rolEnEquipo(m.id).equipo) : ''),
+    q(m.estado || 'Activo'), q(fmtDate(m.fechaRegistro))].join(';'));
   }
   // BOM para que Excel abra bien los acentos
   downloadFile(`membresia_cfnj_${settings.anio}.csv`, BOM + lines.join('\r\n'), 'text/csv;charset=utf-8');
@@ -2355,7 +2377,7 @@ function memberQRDataUrl(m) {
       'CONFRATERNIDAD CRISTIANA NUEVA JERUSALEN\n' +
       'Miembro: ' + (m.nombres || '') + '\n' +
       'C.I.: ' + (m.ci || '-') + '\n' +
-      'Funcion: ' + (m.funcion || 'Miembro') + '\n' +
+      'Funcion: ' + (funcionMostrada(m) || 'Miembro') + '\n' +
       'Membresia ' + settings.anio + ' - ' + ((m.estado || 'Activo').toUpperCase()) + '\n' +
       'RIF ' + settings.rif;
     const qr = qrcode(0, 'M');
@@ -2377,7 +2399,7 @@ function carnetParts(m) {
       ? `<img class="c-photo" src="${m.foto}" alt="">`
       : `<div class="c-photo placeholder">${esc(initials(m.nombres))}</div>`,
     ciHTML: m.ci ? `<div class="c-ci">C.I. ${esc(fmtCI(m.ci))}</div>` : '',
-    funcion: esc(m.funcion || 'Miembro Activo'),
+    funcion: esc(funcionMostrada(m) || 'Miembro Activo'),
     qrHTML: qrUrl ? `<img class="c-qr" src="${qrUrl}" alt="">` : '',
     anio: esc(settings.anio),
     sede: esc(settings.sede),
@@ -2565,6 +2587,54 @@ function carnetBandera(m) {
   </div>`;
 }
 
+/* Modelo 9 — Bandera v2: mismo fondo con un velo oscuro abajo para que el
+   texto blanco se lea bien; logo en placa blanca y el rol en píldora amarilla. */
+function carnetBandera2(m) {
+  const p = carnetParts(m);
+  const fondo = (window.ASSETS && window.ASSETS.fondoBandera) || '';
+  return `
+  <div class="carnet m-bandera2" style="background-image:url('${fondo}')">
+    <div class="c-velo"></div>
+    ${tieneElem('logo') ? `<div class="c-placa"><img src="${p.logoSrc}" alt="">${tieneElem('rif') ? `<span>RIF ${p.rif}</span>` : ''}</div>` : ''}
+    <div class="c-fila">
+      ${tieneElem('foto') ? p.fotoHTML : ''}
+      <div class="c-datos">
+        ${tieneElem('nombre') ? `<div class="${p.nameClass}">${p.name}</div>` : ''}
+        ${tieneElem('ci') ? p.ciHTML : ''}
+        ${tieneElem('funcion') ? `<div class="c-funcion">${p.funcion}</div>` : ''}
+        ${stackHTML(p, m, ['logo', 'rif', 'foto', 'nombre', 'ci', 'funcion', 'qr'])}
+      </div>
+    </div>
+    <div class="c-anio">MEMBRESÍA ${p.anio}</div>
+    <div class="c-regla"></div>
+    ${tieneElem('qr') ? p.qrHTML : ''}
+    ${tieneElem('sede') ? `<div class="c-sede">${p.sede}</div>` : ''}
+  </div>`;
+}
+
+/* Modelo 10 — Bandera v3: la bandera arriba y los datos sobre blanco abajo
+   (máximo contraste); la foto queda montada entre las dos zonas. */
+function carnetBandera3(m) {
+  const p = carnetParts(m);
+  const fondo = (window.ASSETS && window.ASSETS.fondoBandera) || '';
+  return `
+  <div class="carnet m-bandera3">
+    <div class="c-cielo" style="background-image:url('${fondo}')">
+      ${tieneElem('logo') ? `<div class="c-placa"><img src="${p.logoSrc}" alt="">${tieneElem('rif') ? `<span>RIF ${p.rif}</span>` : ''}</div>` : ''}
+    </div>
+    ${tieneElem('foto') ? p.fotoHTML : ''}
+    ${tieneElem('nombre') ? `<div class="${p.nameClass}">${p.name}</div>` : ''}
+    ${tieneElem('ci') ? p.ciHTML : ''}
+    ${tieneElem('funcion') ? `<div class="c-funcion">${p.funcion}</div>` : ''}
+    ${stackHTML(p, m, ['logo', 'rif', 'foto', 'nombre', 'ci', 'funcion', 'qr'])}
+    <div class="c-anio">MEMBRESÍA ${p.anio}</div>
+    ${tieneElem('qr') ? p.qrHTML : ''}
+    <div class="c-band">
+      ${tieneElem('sede') ? `<div class="c-sede">${p.sede}</div>` : ''}
+    </div>
+  </div>`;
+}
+
 const CARNET_MODELOS = {
   clasico: { nombre: 'Clásico', fn: carnetClasico },
   azul: { nombre: 'Azul', fn: carnetAzul },
@@ -2573,7 +2643,9 @@ const CARNET_MODELOS = {
   verde: { nombre: 'Verde', fn: carnetVerde },
   minimal: { nombre: 'Blanco', fn: carnetMinimal },
   tricolor: { nombre: 'Tricolor', fn: carnetTricolor },
-  bandera: { nombre: 'Bandera', fn: carnetBandera }
+  bandera: { nombre: 'Bandera', fn: carnetBandera },
+  bandera2: { nombre: 'Bandera v2', fn: carnetBandera2 },
+  bandera3: { nombre: 'Bandera v3', fn: carnetBandera3 }
 };
 
 function carnetHTML(m) {
@@ -2602,7 +2674,7 @@ function renderCarnetList() {
       <div class="avatar">${m.foto ? `<img src="${m.foto}" alt="">` : esc(initials(m.nombres))}</div>
       <div>
         <div class="cm-name">${esc(m.nombres)}</div>
-        <div class="cm-sub">${esc(m.funcion || 'Miembro')} ${m.ci ? '· C.I. ' + esc(fmtCI(m.ci)) : ''}</div>
+        <div class="cm-sub">${esc(funcionMostrada(m) || 'Miembro')} ${m.ci ? '· C.I. ' + esc(fmtCI(m.ci)) : ''}</div>
       </div>
     </label>
   `).join('');
@@ -2848,6 +2920,265 @@ async function enviarWhatsApp(m) {
 }
 
 $('#btnDownloadPNG').addEventListener('click', () => downloadCarnetPNG(selectedMembers()));
+
+/* ============================================================
+   EQUIPOS DE COSECHA
+   Reemplazan a los antiguos "oikos": cada equipo tiene un líder y
+   colaboradores. En la nube viven en la tabla "equipos"; en modo local
+   (y como copia sin internet) en localStorage.
+   ============================================================ */
+const EQUIPOS_KEY = 'cfnj_equipos';
+let EQUIPOS = (() => { try { return JSON.parse(localStorage.getItem(EQUIPOS_KEY) || '[]'); } catch { return []; } })();
+
+function guardarEquiposLocal() {
+  try { localStorage.setItem(EQUIPOS_KEY, JSON.stringify(EQUIPOS)); } catch {}
+}
+
+async function cargarEquipos() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('equipos').select('*').order('orden').order('id');
+    if (error) throw error;
+    EQUIPOS = data || [];
+    guardarEquiposLocal();
+  } catch { /* sin internet: queda la copia local */ }
+}
+
+async function guardarEquipo(eq) {
+  eq.actualizado = new Date().toISOString();
+  if (sb) {
+    const rec = { orden: eq.orden, integrantes: eq.integrantes, actualizado: eq.actualizado };
+    if (eq.id != null) rec.id = eq.id;
+    const { data, error } = await sb.from('equipos').upsert(rec).select().single();
+    if (error) throw new Error(esErrorRed(error) ? 'Se necesita conexión a internet para guardar equipos' : error.message);
+    Object.assign(eq, data);
+  } else if (eq.id == null) {
+    eq.id = Date.now();
+  }
+  const i = EQUIPOS.findIndex(e => e.id === eq.id);
+  if (i >= 0) EQUIPOS[i] = eq; else EQUIPOS.push(eq);
+  guardarEquiposLocal();
+}
+
+async function borrarEquipo(id) {
+  if (sb) {
+    const { error } = await sb.from('equipos').delete().eq('id', id);
+    if (error) throw new Error(esErrorRed(error) ? 'Se necesita conexión a internet para eliminar equipos' : error.message);
+  }
+  EQUIPOS = EQUIPOS.filter(e => e.id !== id);
+  guardarEquiposLocal();
+}
+
+/* Rol de un miembro según los equipos: { rol, equipo } o null */
+function rolEnEquipo(miembroId) {
+  if (miembroId == null) return null;
+  for (const eq of EQUIPOS) {
+    const p = (eq.integrantes || []).find(x => x.miembroId === miembroId);
+    if (p) return { rol: p.rol, equipo: eq };
+  }
+  return null;
+}
+
+const liderDe = (eq) => (eq.integrantes || []).find(p => p.rol === 'Líder');
+const nombreEquipo = (eq) => {
+  const l = liderDe(eq);
+  return l ? `Equipo de ${nombreIntegrante(l)}` : `Equipo ${eq.orden || ''}`.trim();
+};
+function nombreIntegrante(p) {
+  const m = p.miembroId != null && MEMBERS.find(x => x.id === p.miembroId);
+  return m ? m.nombres : p.nombre;
+}
+
+/* Función que se muestra (tabla, ficha, carnet). Ya no existen los "oikos":
+   el rol del equipo de cosecha manda, y del texto libre de la planilla se
+   quitan las menciones a oikos y las respuestas vacías ("No", "Ninguna"). */
+const RE_OIKO = /oi[kc]|viko/i;
+function funcionLimpia(texto) {
+  const t = String(texto || '').trim();
+  if (!t || /^(no|ninguna?|si|sí|n\/a|-+)\.?$/i.test(t)) return '';
+  if (!RE_OIKO.test(t)) return t;
+  return t.split(',')
+    .flatMap(seg => RE_OIKO.test(seg) ? seg.split(/\s+y\s+/i).filter(s => !RE_OIKO.test(s)) : [seg])
+    .map(s => s.replace(/^\s*y\s+/i, '').trim())
+    .filter(Boolean)
+    .join(', ');
+}
+function funcionMostrada(m) {
+  return rolEnEquipo(m.id)?.rol || funcionLimpia(m.funcion);
+}
+function badgeFuncion(m) {
+  const r = rolEnEquipo(m.id)?.rol;
+  if (r) return `<span class="badge ${r === 'Líder' ? 'badge-lider' : 'badge-colab'}">${esc(r)}</span>`;
+  const f = funcionLimpia(m.funcion);
+  return f ? `<span class="badge">${esc(f)}</span>` : '<span class="badge badge-empty">Miembro</span>';
+}
+
+/* ---- Vista de equipos ---- */
+function renderEquipos() {
+  const q = norm($('#equiposSearch').value.trim());
+  const soloSinFicha = $('#equiposSinFicha').checked;
+  const personas = EQUIPOS.flatMap(e => e.integrantes || []);
+  const lideres = personas.filter(p => p.rol === 'Líder').length;
+  const sinFicha = personas.filter(p => p.miembroId == null).length;
+  $('#equiposResumen').textContent = EQUIPOS.length
+    ? `${EQUIPOS.length} equipos, ${lideres} líderes y ${personas.length - lideres} colaboradores` +
+      (sinFicha ? `. ${sinFicha} personas aún sin ficha de miembro.` : '.')
+    : 'Líderes y colaboradores de cada equipo';
+
+  const coincide = (p) => (!q || norm(nombreIntegrante(p)).includes(q) || norm(p.nombre).includes(q)) &&
+    (!soloSinFicha || p.miembroId == null);
+  const visibles = EQUIPOS
+    .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0))
+    .filter(eq => (eq.integrantes || []).some(coincide));
+
+  if (!EQUIPOS.length) {
+    $('#equiposGrid').innerHTML = '<p class="empty-msg">Todavía no hay equipos. Crea el primero con <b>Nuevo equipo</b>.</p>';
+    return;
+  }
+  if (!visibles.length) {
+    $('#equiposGrid').innerHTML = '<p class="empty-msg">Ninguna persona coincide con la búsqueda.</p>';
+    return;
+  }
+  const persona = (p) => {
+    const m = p.miembroId != null && MEMBERS.find(x => x.id === p.miembroId);
+    const atenuar = (q || soloSinFicha) && !coincide(p);
+    return `
+      <div class="eq-persona ${p.rol === 'Líder' ? 'es-lider' : ''} ${m ? 'con-ficha' : ''} ${atenuar ? 'atenuada' : ''}" ${m ? `data-id="${m.id}"` : ''}>
+        <div class="avatar">${m && m.foto ? `<img src="${m.foto}" alt="">` : esc(initials(nombreIntegrante(p)))}</div>
+        <div class="eq-persona-txt">
+          <span class="eq-nombre">${esc(nombreIntegrante(p))}</span>
+          ${m ? '' : '<span class="eq-sin-ficha">Sin ficha</span>'}
+        </div>
+        ${p.rol === 'Líder' ? '<span class="eq-rol">Líder</span>' : ''}
+      </div>`;
+  };
+  $('#equiposGrid').innerHTML = visibles.map(eq => {
+    const ints = eq.integrantes || [];
+    const orden = [...ints.filter(p => p.rol === 'Líder'), ...ints.filter(p => p.rol !== 'Líder')];
+    return `
+      <article class="equipo-card">
+        <header class="equipo-head">
+          <span class="equipo-num">${eq.orden || ''}</span>
+          <span class="equipo-cuenta">${ints.length} ${ints.length === 1 ? 'persona' : 'personas'}</span>
+          <button class="icon-btn" data-editar-equipo="${eq.id}" title="Editar equipo" aria-label="Editar ${esc(nombreEquipo(eq))}"><i data-lucide="pencil"></i></button>
+        </header>
+        <div class="equipo-personas">${orden.map(persona).join('')}</div>
+      </article>`;
+  }).join('');
+  refreshIcons();
+}
+
+$('#equiposSearch').addEventListener('input', renderEquipos);
+$('#equiposSinFicha').addEventListener('change', renderEquipos);
+$('#equiposGrid').addEventListener('click', (e) => {
+  const ed = e.target.closest('[data-editar-equipo]');
+  if (ed) { abrirEquipo(EQUIPOS.find(x => String(x.id) === ed.dataset.editarEquipo)); return; }
+  const p = e.target.closest('.eq-persona[data-id]');
+  if (p) {
+    const m = MEMBERS.find(x => x.id === Number(p.dataset.id));
+    if (m) openViewModal(m);
+  }
+});
+
+/* ---- Editor de un equipo ---- */
+let equipoEditando = null;
+
+function opcionesMiembros(seleccionado) {
+  const lista = [...MEMBERS].sort((a, b) => (a.nombres || '').localeCompare(b.nombres || '', 'es'));
+  return '<option value="">Sin ficha</option>' + lista.map(m =>
+    `<option value="${m.id}" ${m.id === seleccionado ? 'selected' : ''}>${esc(m.nombres)}${m.ci ? ' — ' + esc(fmtCI(m.ci)) : ''}</option>`
+  ).join('');
+}
+
+function filaEquipoHTML(p) {
+  return `
+    <div class="eq-fila">
+      <input type="text" class="eq-in-nombre" value="${esc(p.nombre || '')}" placeholder="Nombre" aria-label="Nombre">
+      <select class="eq-in-rol filter-select" aria-label="Rol">
+        <option ${p.rol === 'Líder' ? 'selected' : ''}>Líder</option>
+        <option ${p.rol !== 'Líder' ? 'selected' : ''}>Colaborador</option>
+      </select>
+      <select class="eq-in-ficha filter-select" aria-label="Ficha del miembro">${opcionesMiembros(p.miembroId)}</select>
+      <button type="button" class="icon-btn eq-quitar" title="Quitar persona" aria-label="Quitar persona"><i data-lucide="x"></i></button>
+    </div>`;
+}
+
+function abrirEquipo(eq) {
+  equipoEditando = eq || null;
+  const ints = eq ? eq.integrantes : [{ rol: 'Líder' }, { rol: 'Colaborador' }, { rol: 'Colaborador' }, { rol: 'Colaborador' }];
+  $('#equipoModalTitulo').textContent = eq ? nombreEquipo(eq) : 'Nuevo equipo';
+  $('#equipoFilas').innerHTML = ints.map(filaEquipoHTML).join('');
+  $('#btnEqBorrar').classList.toggle('hidden', !eq);
+  $('#equipoModal').classList.remove('hidden');
+  refreshIcons();
+}
+
+$('#btnNuevoEquipo').addEventListener('click', () => abrirEquipo(null));
+$('#btnEqAgregar').addEventListener('click', () => {
+  $('#equipoFilas').insertAdjacentHTML('beforeend', filaEquipoHTML({ rol: 'Colaborador' }));
+  refreshIcons();
+  $('#equipoFilas .eq-fila:last-child .eq-in-nombre').focus();
+});
+$('#equipoFilas').addEventListener('click', (e) => {
+  const b = e.target.closest('.eq-quitar');
+  if (b) b.closest('.eq-fila').remove();
+});
+// Al elegir la ficha, completa el nombre si está vacío
+$('#equipoFilas').addEventListener('change', (e) => {
+  if (!e.target.classList.contains('eq-in-ficha')) return;
+  const fila = e.target.closest('.eq-fila');
+  const m = MEMBERS.find(x => x.id === Number(e.target.value));
+  const nom = fila.querySelector('.eq-in-nombre');
+  if (m && !nom.value.trim()) nom.value = m.nombres;
+});
+
+$('#btnEqGuardar').addEventListener('click', async () => {
+  const integrantes = [...$$('#equipoFilas .eq-fila')].map(f => {
+    const ficha = f.querySelector('.eq-in-ficha').value;
+    return {
+      nombre: f.querySelector('.eq-in-nombre').value.trim(),
+      rol: f.querySelector('.eq-in-rol').value,
+      miembroId: ficha ? Number(ficha) : null
+    };
+  }).filter(p => p.nombre || p.miembroId != null);
+  if (!integrantes.length) { toast('Agrega al menos una persona al equipo', 'err'); return; }
+  if (!integrantes.some(p => p.rol === 'Líder')) { toast('El equipo necesita un líder', 'err'); return; }
+  // Una ficha solo puede estar en un equipo
+  const ids = integrantes.map(p => p.miembroId).filter(id => id != null);
+  if (new Set(ids).size !== ids.length) { toast('La misma ficha está repetida en el equipo', 'err'); return; }
+  const enOtro = ids.map(id => ({ id, r: rolEnEquipo(id) }))
+    .find(x => x.r && x.r.equipo.id !== equipoEditando?.id);
+  if (enOtro) {
+    const m = MEMBERS.find(x => x.id === enOtro.id);
+    toast(`${m ? m.nombres : 'Esa persona'} ya está en el ${nombreEquipo(enOtro.r.equipo)}`, 'err', 6000);
+    return;
+  }
+  integrantes.forEach(p => { if (!p.nombre) p.nombre = MEMBERS.find(x => x.id === p.miembroId)?.nombres || ''; });
+  const eq = equipoEditando
+    ? { ...equipoEditando, integrantes }
+    : { orden: Math.max(0, ...EQUIPOS.map(x => x.orden || 0)) + 1, integrantes };
+  try {
+    await guardarEquipo(eq);
+    $('#equipoModal').classList.add('hidden');
+    renderEquipos();
+    toast('Equipo guardado');
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+});
+
+$('#btnEqBorrar').addEventListener('click', async () => {
+  if (!equipoEditando) return;
+  if (!confirm(`¿Eliminar el ${nombreEquipo(equipoEditando)}? Las fichas de los miembros no se borran.`)) return;
+  try {
+    await borrarEquipo(equipoEditando.id);
+    $('#equipoModal').classList.add('hidden');
+    renderEquipos();
+    toast('Equipo eliminado');
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+});
 
 /* ============================================================
    AJUSTES
@@ -3149,6 +3480,7 @@ async function cargarApp() {
     if (hayCache) { renderDashboard(); renderMembersTable(); }
     else mostrarSkeleton();
   }
+  cargarEquipos().then(() => renderTab(ACTIVE_TAB)); // los roles se muestran en tabla y carnets
   try {
     // Primero llegan los datos sin fotos (rápido) y se pinta; las fotos después
     await refreshMembers(() => { renderDashboard(); renderTab(ACTIVE_TAB); });

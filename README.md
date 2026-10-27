@@ -38,6 +38,14 @@ mantener la base de datos de la membresía y generar carnets verticales con QR d
 4. Recomendado en el panel de Supabase: Authentication → Providers → Email → activar
    "Confirm email", para que las cuentas nuevas verifiquen su correo.
 
+## Equipos de cosecha
+
+Reemplazan a los antiguos "oikos". Cada equipo (tabla `public.equipos`) tiene un líder y sus
+colaboradores; cada persona puede estar vinculada a su ficha de miembro o figurar solo con su
+nombre. El rol del equipo (Líder / Colaborador) es la función que se muestra en la tabla, la ficha
+y el carnet; si la persona no está en ningún equipo, se muestra su función de la planilla sin las
+menciones a oikos. El texto original de la planilla no se modifica.
+
 ## Keep-alive (que Supabase no pause el proyecto)
 
 Supabase pausa los proyectos gratuitos tras 7 días sin uso. Dos crons llaman a la función

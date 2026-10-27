@@ -1306,6 +1306,8 @@ svg.lucide {
   margin-top: 7mm;
   position: relative; z-index: 2;
 }
+.carnet.m-bandera .c-anio { font-weight: 700; padding-left: 1.2mm; }
+.carnet.m-bandera .c-sede { text-shadow: 0 .2mm .8mm rgba(0, 15, 45, .55); }
 .carnet.m-bandera .c-qr { margin: 1.2mm 0 0; position: relative; z-index: 2; }
 .carnet.m-bandera .c-sede {
   margin: auto 3mm 3.2mm;
@@ -1314,6 +1316,112 @@ svg.lucide {
   line-height: 1.35;
   position: relative; z-index: 2;
 }
+
+/* ---- Modelo Bandera v2: velo oscuro y texto blanco (más contraste) ---- */
+.carnet.m-bandera2 {
+  background-color: #2c58a8;
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+}
+.carnet.m-bandera2 .c-velo {
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(180deg, rgba(8, 26, 60, 0) 0%, rgba(8, 26, 60, .25) 38%, rgba(8, 26, 60, .78) 72%, rgba(8, 26, 60, .92) 100%);
+}
+.carnet.m-bandera2 .c-placa {
+  position: relative; z-index: 2;
+  margin-top: 3.4mm;
+  background: #fff;
+  border-radius: 2mm;
+  padding: 1.4mm 3mm 1.1mm;
+  box-shadow: 0 .8mm 2.4mm rgba(0, 20, 60, .25);
+  display: flex; flex-direction: column; align-items: center;
+}
+.carnet.m-bandera2 .c-placa img { width: 31mm; display: block; }
+.carnet.m-bandera2 .c-placa span { font-size: 1.6mm; font-weight: 700; color: #10192b; letter-spacing: .15mm; margin-top: -.6mm; }
+.carnet.m-bandera2 .c-fila {
+  display: flex; align-items: center; gap: 2.6mm;
+  width: 100%; padding: 0 3mm;
+  margin-top: 6mm;
+  position: relative; z-index: 2;
+}
+.carnet.m-bandera2 .c-photo {
+  width: 21mm; height: 25mm; margin: 0;
+  border: .8mm solid #fff; border-radius: 1.2mm;
+  box-shadow: 0 1.2mm 3mm rgba(0, 15, 45, .45);
+}
+.carnet.m-bandera2 .c-datos { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; }
+.carnet.m-bandera2 .c-name {
+  color: #fff; margin: 0; font-size: 3.2mm; line-height: 1.12;
+  text-shadow: 0 .3mm 1.2mm rgba(0, 15, 45, .55);
+}
+.carnet.m-bandera2 .c-name.small { font-size: 2.7mm; }
+.carnet.m-bandera2 .c-ci { color: #e6eefb; font-size: 2.1mm; font-weight: 600; margin-top: .6mm; text-shadow: 0 .3mm 1mm rgba(0, 15, 45, .5); }
+.carnet.m-bandera2 .c-funcion {
+  background: var(--amarillo); color: #13233f;
+  font-size: 2.1mm; font-weight: 700;
+  padding: .7mm 2.6mm; margin-top: 1.8mm;
+  max-width: 100%;
+}
+.carnet.m-bandera2 .c-dato { color: #e6eefb; text-align: left; }
+.carnet.m-bandera2 .c-anio {
+  position: relative; z-index: 2;
+  margin-top: auto;
+  color: #fff; font-weight: 700; font-size: 3.5mm; letter-spacing: 1.3mm;
+  padding-left: 1.3mm; /* compensa el espaciado de la última letra */
+}
+.carnet.m-bandera2 .c-regla {
+  position: relative; z-index: 2;
+  width: 30mm; height: .9mm; margin-top: 1.2mm; border-radius: 1mm;
+  background: linear-gradient(90deg, #feeb01 33.3%, #079832 33.3% 66.6%, #ffffff 66.6%);
+}
+.carnet.m-bandera2 .c-qr { position: relative; z-index: 2; margin: 1.6mm 0 0; border: .5mm solid #fff; border-radius: .8mm; }
+.carnet.m-bandera2 .c-sede {
+  position: relative; z-index: 2;
+  margin: 2mm 3mm 3mm;
+  color: #dbe5f5; font-size: 1.7mm; line-height: 1.35;
+}
+
+/* ---- Modelo Bandera v3: bandera arriba, datos sobre blanco ---- */
+.carnet.m-bandera3 { background: #fff; }
+.carnet.m-bandera3 .c-cielo {
+  width: 100%; height: 34mm; flex-shrink: 0;
+  background-size: cover; background-position: center 30%;
+  display: flex; flex-direction: column; align-items: center;
+  position: relative;
+}
+.carnet.m-bandera3 .c-placa {
+  margin-top: 2.6mm;
+  background: #fff; border-radius: 2mm;
+  padding: 1.2mm 2.8mm;
+  box-shadow: 0 .8mm 2.4mm rgba(0, 20, 60, .22);
+}
+.carnet.m-bandera3 .c-placa { display: flex; flex-direction: column; align-items: center; }
+.carnet.m-bandera3 .c-placa img { width: 27mm; display: block; }
+.carnet.m-bandera3 .c-placa span { font-size: 1.55mm; font-weight: 700; color: #10192b; letter-spacing: .15mm; margin-top: -.5mm; }
+.carnet.m-bandera3 .c-photo {
+  width: 20mm; height: 23mm;
+  margin-top: -8mm;
+  border: .9mm solid #fff; border-radius: 2mm;
+  box-shadow: 0 1.2mm 3mm rgba(0, 30, 80, .3);
+  position: relative; z-index: 3;
+}
+.carnet.m-bandera3 .c-name { color: #13233f; margin-top: 1.6mm; }
+.carnet.m-bandera3 .c-ci { color: #3d4b63; }
+.carnet.m-bandera3 .c-funcion { background: #005FB2; margin-bottom: 1.8mm; }
+.carnet.m-bandera3 .c-anio {
+  margin-top: auto;
+  color: #13233f; font-weight: 700; font-size: 3.3mm; letter-spacing: 1.2mm;
+  padding-left: 1.2mm;
+}
+.carnet.m-bandera3 .c-qr { margin: 1mm 0 0; }
+.carnet.m-bandera3 .c-band {
+  margin-top: 1.6mm;
+  background: #13233f;
+  padding: 1.6mm 2.5mm 1.8mm;
+}
+.carnet.m-bandera3 .c-band::before { background: linear-gradient(90deg, #005FB2 33.3%, #079832 33.3% 66.6%, #feeb01 66.6%); }
+.carnet.m-bandera3 .c-sede { color: #dbe5f5; margin: 0; }
 
 /* ---- QR de verificación ---- */
 .carnet .c-qr {
@@ -1367,6 +1475,8 @@ svg.lucide {
 .modelo-dot.d-verde { background: linear-gradient(180deg, #fff 45%, #079832 45%); border: 1px solid #d8dfeb; }
 .modelo-dot.d-minimal { background: #fff; border: 1px solid #8a93a5; }
 .modelo-dot.d-tricolor { background: linear-gradient(110deg, #005FB2 40%, #079832 40% 65%, #feeb01 65%); }
+.modelo-dot.d-bandera2 { background: linear-gradient(180deg, #5b93dc 40%, #13233f 40%); }
+.modelo-dot.d-bandera3 { background: linear-gradient(180deg, #5b93dc 45%, #fff 45%); border: 1px solid #d8dfeb; }
 .modelo-dot.d-bandera { background: linear-gradient(160deg, #5b93dc 35%, #ffe14d 35% 48%, #3f74c9 48% 62%, #e0303a 62% 72%, #4a5cb8 72%); }
 
 /* ---- Ajustes: sección avanzada colapsada ---- */
@@ -1631,6 +1741,94 @@ svg.lucide {
     white-space: nowrap;
   }
   .members-table tr:hover td { background: transparent; }
+}
+
+/* ================= EQUIPOS DE COSECHA ================= */
+.check-inline { display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px; color: var(--gris); cursor: pointer; }
+.equipos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 16px;
+}
+.equipo-card {
+  background: var(--blanco);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  padding: 12px 12px 8px;
+}
+.equipo-head { display: flex; align-items: center; gap: 10px; padding: 0 4px 8px; }
+.equipo-num {
+  font-family: var(--titulos); font-weight: 600; font-size: 14px;
+  color: var(--gris); font-variant-numeric: tabular-nums;
+}
+.equipo-num::before { content: 'Equipo '; }
+.equipo-cuenta { color: var(--gris); font-size: 13.5px; margin-left: auto; }
+.equipo-head .icon-btn {
+  width: 30px; height: 30px; border-radius: 8px;
+  border: 1px solid var(--linea); background: var(--blanco); color: var(--gris); cursor: pointer;
+}
+.equipo-head .icon-btn:hover { color: var(--azul); border-color: var(--azul); }
+.equipo-personas { display: flex; flex-direction: column; }
+.eq-persona {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 4px; border-radius: 8px;
+}
+.eq-persona .avatar { width: 32px; height: 32px; font-size: 12px; }
+.eq-persona.con-ficha { cursor: pointer; }
+.eq-persona.con-ficha:hover { background: var(--fondo); }
+.eq-persona.es-lider {
+  background: #fffbe0;
+  border: 1px solid #f3e27a;
+  padding: 8px 8px;
+  margin-bottom: 4px;
+}
+.eq-persona.es-lider .avatar { width: 38px; height: 38px; font-size: 13px; }
+.eq-persona.es-lider .eq-nombre { font-weight: 700; }
+.eq-persona.atenuada { opacity: .38; }
+.eq-persona-txt { display: flex; flex-direction: column; min-width: 0; }
+.eq-nombre { font-size: 14.5px; font-weight: 600; line-height: 1.25; }
+.eq-sin-ficha { font-size: 12.5px; color: #8a6d00; }
+.eq-rol {
+  margin-left: auto; flex-shrink: 0;
+  background: var(--marino); color: var(--amarillo);
+  font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px;
+}
+
+/* Editor de equipo */
+.eq-filas-head, .eq-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 140px minmax(0, 1.4fr) 34px;
+  gap: 8px; align-items: center;
+}
+.eq-filas-head { font-size: 13.5px; font-weight: 700; color: var(--gris); margin: 4px 0 6px; }
+.eq-filas { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.eq-fila input, .eq-fila select {
+  width: 100%;
+  padding: 9px 11px; border-radius: var(--radio-sm);
+  border: 1px solid var(--linea); background: var(--blanco);
+  font: inherit; font-size: 14.5px; color: var(--tinta);
+  box-shadow: none;
+}
+.eq-fila input:focus, .eq-fila select:focus { outline: 0; border-color: var(--azul); }
+.eq-quitar {
+  width: 34px; height: 34px; border-radius: 8px;
+  border: 1px solid var(--linea); background: var(--blanco); color: var(--gris); cursor: pointer;
+}
+.eq-quitar:hover { color: #c62828; border-color: #f0b4b4; }
+.eq-foot { justify-content: space-between; gap: 10px; }
+
+/* Distintivos de rol en tabla y ficha */
+.badge-lider { background: var(--marino); color: var(--amarillo); }
+.badge-colab { background: var(--azul-suave); color: var(--azul); }
+.view-equipo { font-size: 14px; color: var(--gris); margin-top: 4px; }
+
+@media (max-width: 600px) {
+  .eq-filas-head { display: none; }
+  .eq-fila { grid-template-columns: 1fr 34px; grid-template-areas: "nombre quitar" "rol rol" "ficha ficha"; padding: 10px; border: 1px solid var(--linea); border-radius: var(--radio-sm); }
+  .eq-fila .eq-in-nombre { grid-area: nombre; }
+  .eq-fila .eq-in-rol { grid-area: rol; }
+  .eq-fila .eq-in-ficha { grid-area: ficha; }
+  .eq-fila .eq-quitar { grid-area: quitar; }
 }
 
 /* ================= AVISO DE SINCRONIZACIÓN ================= */

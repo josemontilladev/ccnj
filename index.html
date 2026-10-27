@@ -40,6 +40,9 @@
       <button class="nav-item" data-tab="miembros">
         <span class="nav-ico"><i data-lucide="users"></i></span> Miembros
       </button>
+      <button class="nav-item" data-tab="equipos">
+        <span class="nav-ico"><i data-lucide="wheat"></i></span> Equipos
+      </button>
       <button class="nav-item" data-tab="carnets">
         <span class="nav-ico"><i data-lucide="id-card"></i></span> Carnets
       </button>
@@ -362,6 +365,27 @@
       </div>
     </section>
 
+    <!-- ========== EQUIPOS DE COSECHA ========== -->
+    <section class="tab" id="tab-equipos">
+      <header class="page-head">
+        <div>
+          <h1>Equipos de cosecha</h1>
+          <p class="subtitle" id="equiposResumen">Líderes y colaboradores de cada equipo</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn btn-primary" id="btnNuevoEquipo"><i data-lucide="plus"></i> Nuevo equipo</button>
+        </div>
+      </header>
+      <div class="toolbar">
+        <div class="search-wrap">
+          <i data-lucide="search"></i>
+          <input type="search" id="equiposSearch" class="search" placeholder="Buscar una persona en los equipos…">
+        </div>
+        <label class="check-inline"><input type="checkbox" id="equiposSinFicha"> Solo personas sin ficha</label>
+      </div>
+      <div id="equiposGrid" class="equipos-grid"></div>
+    </section>
+
     <!-- ========== CARNETS ========== -->
     <section class="tab" id="tab-carnets">
       <header class="page-head">
@@ -399,6 +423,8 @@
             <button class="modelo-btn" data-modelo="minimal"><span class="modelo-dot d-minimal"></span>Blanco</button>
             <button class="modelo-btn" data-modelo="tricolor"><span class="modelo-dot d-tricolor"></span>Tricolor</button>
             <button class="modelo-btn" data-modelo="bandera"><span class="modelo-dot d-bandera"></span>Bandera</button>
+            <button class="modelo-btn" data-modelo="bandera2"><span class="modelo-dot d-bandera2"></span>Bandera v2</button>
+            <button class="modelo-btn" data-modelo="bandera3"><span class="modelo-dot d-bandera3"></span>Bandera v3</button>
           </div>
           <button class="btn btn-ghost btn-editar-carnet" id="btnEditarCarnet"><i data-lucide="settings-2"></i> Editar elementos del carnet</button>
           <div id="carnetPreview" class="carnet-preview">
@@ -456,6 +482,27 @@
     </div>
     <div class="modal-foot">
       <button class="btn btn-primary" id="btnSaveSettings"><i data-lucide="check"></i> Guardar ajustes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL EDITAR EQUIPO ===== -->
+<div class="modal-backdrop hidden" id="equipoModal">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h2 id="equipoModalTitulo">Editar equipo</h2>
+      <button class="modal-close" data-close="equipoModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="lista-hint">Vincula a cada persona con su ficha para que su rol aparezca en el carnet.
+        Si todavía no está registrada, deja "Sin ficha" y escribe solo su nombre.</p>
+      <div class="eq-filas-head"><span>Nombre</span><span>Rol</span><span>Ficha del miembro</span><span></span></div>
+      <div id="equipoFilas" class="eq-filas"></div>
+      <button class="btn btn-ghost" id="btnEqAgregar" type="button"><i data-lucide="user-plus"></i> Agregar persona</button>
+    </div>
+    <div class="modal-foot eq-foot">
+      <button class="btn btn-danger" id="btnEqBorrar" type="button"><i data-lucide="trash-2"></i> Eliminar equipo</button>
+      <button class="btn btn-primary" id="btnEqGuardar" type="button"><i data-lucide="check"></i> Guardar equipo</button>
     </div>
   </div>
 </div>
