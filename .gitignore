@@ -16,3 +16,4 @@ __pycache__/
 # Respaldos y migración (datos personales y hashes de contraseñas)
 backup/
 migracion/node_modules/
+carnets_canva*

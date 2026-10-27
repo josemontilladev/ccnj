@@ -2376,34 +2376,14 @@ function carnetTricolor(m) {
   </div>`;
 }
 
-/* Modelo 8 — Bandera: fondo azul con la bandera ondeando y las estrellas;
-   foto a la izquierda y datos a la derecha (diseño de Canva de la iglesia).
-   Las estrellas van como SVG en <img> para que html2canvas las exporte. */
-const ESTRELLAS_SVG = (() => {
-  const estrella = (cx, cy, r) => {
-    const pts = [];
-    for (let i = 0; i < 10; i++) {
-      const a = -Math.PI / 2 + i * Math.PI / 5;
-      const rr = i % 2 ? r * 0.4 : r;
-      pts.push((cx + rr * Math.cos(a)).toFixed(1) + ',' + (cy + rr * Math.sin(a)).toFixed(1));
-    }
-    return `<polygon points="${pts.join(' ')}"/>`;
-  };
-  // Ocho estrellas en arco, como en la bandera
-  const arco = Array.from({ length: 8 }, (_, i) => {
-    const a = Math.PI * (0.95 + i * 0.157);
-    return estrella(100 + 70 * Math.cos(a), 95 + 55 * Math.sin(a), 11);
-  }).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 110"><g fill="#fff">${arco}</g></svg>`;
-  return 'data:image/svg+xml;base64,' + btoa(svg);
-})();
-
+/* Modelo 8 — Bandera: el diseño de Canva de la iglesia. El fondo (bandera
+   ondeando sobre azul) es la imagen de Canva sin textos, incrustada en
+   assets.js para que html2canvas la pueda exportar. */
 function carnetBandera(m) {
   const p = carnetParts(m);
+  const fondo = (window.ASSETS && window.ASSETS.fondoBandera) || '';
   return `
-  <div class="carnet m-bandera">
-    <div class="c-flag"><i class="f-am"></i><i class="f-az"></i><i class="f-ro"></i></div>
-    <img class="c-estrellas" src="${ESTRELLAS_SVG}" alt="">
+  <div class="carnet m-bandera" style="background-image:url('${fondo}')">
     ${tieneElem('logo') ? `<img class="c-logo" src="${p.logoSrc}" alt="">` : ''}
     ${tieneElem('rif') ? `<div class="c-rif">${p.rif}</div>` : ''}
     <div class="c-fila">

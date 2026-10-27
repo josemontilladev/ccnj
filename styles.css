@@ -1138,27 +1138,11 @@ svg.lucide {
 }
 .carnet.m-tricolor .c-anio { color: #feeb01; }
 
-/* ---- Modelo Bandera: azul con la bandera ondeando (diseño de Canva) ---- */
+/* ---- Modelo Bandera: diseño de Canva (fondo en ASSETS.fondoBandera) ---- */
 .carnet.m-bandera {
-  background: linear-gradient(180deg, #5b93dc 0%, #3f74c9 40%, #3a64bd 70%, #4a5cb8 100%);
-}
-.carnet.m-bandera .c-flag {
-  position: absolute; z-index: 0;
-  left: -20mm; right: -20mm; top: 10mm; height: 48mm;
-  display: flex; flex-direction: column;
-  transform: rotate(-14deg) skewX(-8deg);
-  opacity: .14;
-}
-.carnet.m-bandera .c-flag i { flex: 1; }
-/* Cada franja se funde con la siguiente para que no queden bordes duros */
-.carnet.m-bandera .c-flag .f-am { background: linear-gradient(180deg, transparent, #ffe14d 45%, #ffe14d); }
-.carnet.m-bandera .c-flag .f-az { background: linear-gradient(180deg, #ffe14d, #1d4fb0 35%, #1d4fb0 65%, #e0303a); }
-.carnet.m-bandera .c-flag .f-ro { background: linear-gradient(180deg, #e0303a, #e0303a 55%, transparent); }
-.carnet.m-bandera .c-estrellas {
-  position: absolute; z-index: 1;
-  width: 40mm; right: -17mm; top: 15mm;
-  transform: rotate(-20deg);
-  opacity: .2;
+  background-color: #3f6fc6;
+  background-size: cover;
+  background-position: center;
 }
 .carnet.m-bandera .c-logo { width: 30mm; margin-top: 4mm; }
 .carnet.m-bandera .c-rif { color: #10192b; font-size: 1.9mm; font-weight: 700; letter-spacing: .1mm; margin-top: 0; }
