@@ -11,9 +11,10 @@
   <link rel="apple-touch-icon" href="favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <!-- Versiones fijas: una actualización externa no puede romper la app -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
   <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
@@ -64,9 +65,8 @@
       <header class="page-head">
         <div>
           <h1>Sistema de Membresía</h1>
-          <p class="subtitle">Confraternidad Cristiana Nueva Jerusalén · <span id="anioInicio">2026</span></p>
+          <p class="subtitle">Confraternidad Cristiana Nueva Jerusalén, <span id="anioInicio">2026</span></p>
         </div>
-        <button class="btn btn-primary" data-goto="registrar"><i data-lucide="user-plus"></i> Registrar miembro</button>
       </header>
 
       <div id="backupBanner" class="backup-banner hidden">
@@ -83,32 +83,55 @@
         <button class="btn btn-ghost" id="btnSyncErrorOk">Entendido</button>
       </div>
 
-      <div class="stats-grid">
-        <div class="stat-card stat-blue">
-          <span class="stat-num" id="statTotal">0</span>
-          <span class="stat-label">Miembros registrados</span>
+      <!-- Resumen de la membresía del año: cuántos miembros y cuántos carnets listos -->
+      <div class="resumen">
+        <div class="resumen-anio">
+          <span class="resumen-label">Membresía</span>
+          <span class="resumen-num" id="resumenAnio">2026</span>
         </div>
-        <div class="stat-card stat-green">
-          <span class="stat-num" id="statFoto">0</span>
-          <span class="stat-label">Con foto para carnet</span>
+        <div class="resumen-cifras">
+          <div class="cifra"><b id="statTotal">0</b><span>miembros</span></div>
+          <div class="cifra"><b id="statActivos">0</b><span>activos</span></div>
+          <div class="cifra"><b id="statFuncion">0</b><span>con función</span></div>
+          <div class="cifra"><b id="statMes">0</b><span>nuevos este mes</span></div>
         </div>
-        <div class="stat-card stat-yellow">
-          <span class="stat-num" id="statFuncion">0</span>
-          <span class="stat-label">Con función en la iglesia</span>
+        <div class="resumen-carnets">
+          <div class="resumen-carnets-txt">
+            <span><b id="statFoto">0</b> de <span id="statTotal2">0</span> listos para carnet</span>
+            <span class="resumen-pct" id="statPct">0%</span>
+          </div>
+          <div class="barra-tri"><i id="barraFoto"></i></div>
         </div>
-        <div class="stat-card stat-dark">
-          <span class="stat-num" id="statMes">0</span>
-          <span class="stat-label">Registrados este mes</span>
+        <div class="resumen-acciones">
+          <button class="btn btn-primary" data-goto="registrar"><i data-lucide="user-plus"></i> Registrar miembro</button>
+          <button class="btn btn-claro" data-goto="carnets"><i data-lucide="id-card"></i> Generar carnets</button>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Últimos registros</h2>
-          <button class="btn btn-ghost" data-goto="miembros">Ver todos <i data-lucide="arrow-right"></i></button>
+      <div class="inicio-grid">
+        <div class="panel panel-recientes">
+          <div class="panel-head">
+            <h2>Últimos registros</h2>
+            <button class="btn btn-link" data-goto="miembros">Ver todos</button>
+          </div>
+          <div id="recientes" class="recent-list">
+            <p class="empty-msg">Aún no hay miembros registrados. Comienza subiendo una planilla en <b>Registrar</b>.</p>
+          </div>
         </div>
-        <div id="recientes" class="recent-list">
-          <p class="empty-msg">Aún no hay miembros registrados. Comienza subiendo una planilla en <b>Registrar</b>.</p>
+
+        <div class="inicio-lado">
+          <div class="panel">
+            <div class="panel-head"><h2>Cumpleaños de <span id="mesActual">este mes</span></h2></div>
+            <div id="cumpleanos" class="mini-list"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Datos por completar</h2></div>
+            <div id="pendientesDatos" class="pend-list"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h2>Funciones en la iglesia</h2></div>
+            <div id="funcionesDist" class="dist-list"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -244,12 +267,21 @@
           <p class="subtitle">Base de datos de la membresía</p>
         </div>
         <div class="head-actions">
-          <button class="btn btn-ghost" id="btnExportJSON"><i data-lucide="database-backup"></i> Respaldo</button>
-          <button class="btn btn-ghost" id="btnImportJSON"><i data-lucide="archive-restore"></i> Restaurar</button>
-          <input type="file" id="importFileInput" accept=".json" hidden>
-          <button class="btn btn-ghost" id="btnExportCSV"><i data-lucide="file-spreadsheet"></i> Excel (CSV)</button>
-          <button class="btn btn-ghost" id="btnExportLista"><i data-lucide="clipboard-list"></i> Lista</button>
-          <button class="btn btn-ghost" id="btnExportFotos"><i data-lucide="image-down"></i> Fotos</button>
+          <div class="menu-wrap">
+            <button class="btn btn-ghost" id="btnMenuDatos" aria-haspopup="true" aria-expanded="false">
+              <i data-lucide="arrow-down-up"></i> Importar / exportar <i data-lucide="chevron-down"></i>
+            </button>
+            <div class="menu hidden" id="menuDatos" role="menu">
+              <p class="menu-grupo">Exportar</p>
+              <button class="menu-item" role="menuitem" id="btnExportCSV"><i data-lucide="file-spreadsheet"></i><span><b>Excel (CSV)</b><small>Todos los datos, para abrir en Excel</small></span></button>
+              <button class="menu-item" role="menuitem" id="btnExportLista"><i data-lucide="clipboard-list"></i><span><b>Lista de miembros</b><small>Nombre, cédula y teléfono: texto, Word o PDF</small></span></button>
+              <button class="menu-item" role="menuitem" id="btnExportFotos"><i data-lucide="image-down"></i><span><b>Fotos</b><small>Descarga las fotos en un archivo ZIP</small></span></button>
+              <p class="menu-grupo">Respaldo</p>
+              <button class="menu-item" role="menuitem" id="btnExportJSON"><i data-lucide="database-backup"></i><span><b>Descargar respaldo</b><small>Copia completa en un archivo .json</small></span></button>
+              <button class="menu-item" role="menuitem" id="btnImportJSON"><i data-lucide="archive-restore"></i><span><b>Restaurar respaldo</b><small>Carga un .json sin crear duplicados</small></span></button>
+            </div>
+          </div>
+          <input type="file" id="importFileInput" accept=".json,application/json" hidden>
           <button class="btn btn-primary" data-goto="registrar"><i data-lucide="user-plus"></i> Registrar</button>
         </div>
       </header>
@@ -283,6 +315,15 @@
             <option value="">Todos</option>
             <option value="si">Con foto</option>
             <option value="no">Sin foto</option>
+          </select>
+        </label>
+        <label>Le falta
+          <select id="fFalta">
+            <option value="">Nada</option>
+            <option value="foto">Foto</option>
+            <option value="ci">Cédula</option>
+            <option value="telefono">Teléfono</option>
+            <option value="fechaNacimiento">Fecha de nacimiento</option>
           </select>
         </label>
         <label>Miembro desde (año)

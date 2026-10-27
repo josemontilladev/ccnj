@@ -524,15 +524,27 @@ $$('[data-goto]').forEach(b => b.addEventListener('click', () => goTab(b.dataset
 /* ---------------- Panel de inicio ---------------- */
 function renderDashboard() {
   $('#anioInicio').textContent = settings.anio;
-  $('#statTotal').textContent = MEMBERS.length;
-  $('#statFoto').textContent = MEMBERS.filter(m => m.foto).length;
+  $('#resumenAnio').textContent = settings.anio;
+  const total = MEMBERS.length;
+  const conFoto = MEMBERS.filter(m => m.foto).length;
+  $('#statTotal').textContent = total;
+  $('#statTotal2').textContent = total;
+  $('#statActivos').textContent = MEMBERS.filter(m => m.estado !== 'Inactivo').length;
+  $('#statFoto').textContent = conFoto;
   $('#statFuncion').textContent = MEMBERS.filter(m => (m.funcion || '').trim()).length;
+  const pct = total ? Math.round(conFoto / total * 100) : 0;
+  $('#statPct').textContent = pct + '%';
+  $('#barraFoto').style.width = pct + '%';
   const now = new Date();
   $('#statMes').textContent = MEMBERS.filter(m => {
     if (!m.fechaRegistro) return false;
     const d = new Date(m.fechaRegistro);
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   }).length;
+
+  renderCumpleanos(now);
+  renderPendientesDatos();
+  renderFunciones();
 
   const box = $('#recientes');
   if (!MEMBERS.length) {
@@ -551,13 +563,95 @@ function renderDashboard() {
   `).join('');
 }
 
-/* Clic en un registro reciente: abre la ficha */
-$('#recientes').addEventListener('click', (e) => {
-  const item = e.target.closest('.recent-item[data-id]');
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/* Día y mes de una fecha de nacimiento escrita a mano ("28/03/1991", "5-7-80") */
+function diaMesNacimiento(texto) {
+  const r = String(texto || '').match(/(\d{1,2})\s*[\/\-.]\s*(\d{1,2})/);
+  if (!r) return null;
+  const dia = Number(r[1]), mes = Number(r[2]);
+  return (dia >= 1 && dia <= 31 && mes >= 1 && mes <= 12) ? { dia, mes } : null;
+}
+
+function renderCumpleanos(now) {
+  $('#mesActual').textContent = MESES[now.getMonth()];
+  const hoy = now.getDate();
+  const lista = MEMBERS
+    .filter(m => m.estado !== 'Inactivo')
+    .map(m => ({ m, f: diaMesNacimiento(m.fechaNacimiento) }))
+    .filter(x => x.f && x.f.mes === now.getMonth() + 1)
+    .sort((a, b) => a.f.dia - b.f.dia);
+  $('#cumpleanos').innerHTML = lista.length ? lista.map(({ m, f }) => `
+    <div class="mini-item ${f.dia === hoy ? 'hoy' : ''} ${f.dia < hoy ? 'pasado' : ''}" data-id="${m.id}">
+      <span class="mini-dia">${f.dia}</span>
+      <span class="mini-nombre">${esc(m.nombres)}</span>
+      ${f.dia === hoy ? '<span class="mini-tag">Hoy</span>' : ''}
+    </div>`).join('')
+    : '<p class="mini-vacio">Nadie cumple años este mes.</p>';
+}
+
+/* Miembros a los que les falta algo que el carnet o la secretaría necesitan */
+function renderPendientesDatos() {
+  const activos = MEMBERS.filter(m => m.estado !== 'Inactivo');
+  const items = [
+    { clave: 'foto', texto: 'Sin foto para el carnet', n: activos.filter(m => !m.foto).length },
+    { clave: 'ci', texto: 'Sin cédula', n: activos.filter(m => !(m.ci || '').trim()).length },
+    { clave: 'telefono', texto: 'Sin teléfono', n: activos.filter(m => !(m.telefono || '').trim()).length },
+    { clave: 'fechaNacimiento', texto: 'Sin fecha de nacimiento', n: activos.filter(m => !(m.fechaNacimiento || '').trim()).length }
+  ];
+  $('#pendientesDatos').innerHTML = items.every(i => !i.n)
+    ? '<p class="mini-vacio">Todos los miembros activos tienen sus datos completos.</p>'
+    : items.filter(i => i.n).map(i => `
+      <button class="pend-item" data-falta="${i.clave}">
+        <span>${i.texto}</span><b>${i.n}</b>
+      </button>`).join('');
+}
+
+function renderFunciones() {
+  const cuenta = new Map();
+  MEMBERS.filter(m => m.estado !== 'Inactivo').forEach(m => {
+    const f = (m.funcion || '').trim() || 'Miembro';
+    const clave = norm(f);
+    const prev = cuenta.get(clave);
+    cuenta.set(clave, { nombre: prev?.nombre || f, n: (prev?.n || 0) + 1 });
+  });
+  const lista = [...cuenta.values()].sort((a, b) => b.n - a.n);
+  const top = lista.slice(0, 6);
+  const resto = lista.slice(6).reduce((s, x) => s + x.n, 0);
+  if (resto) top.push({ nombre: 'Otras funciones', n: resto });
+  const max = Math.max(1, ...top.map(x => x.n));
+  $('#funcionesDist').innerHTML = top.length ? top.map(x => `
+    <div class="dist-item">
+      <div class="dist-txt"><span>${esc(x.nombre)}</span><b>${x.n}</b></div>
+      <div class="dist-barra"><i style="width:${Math.round(x.n / max * 100)}%"></i></div>
+    </div>`).join('')
+    : '<p class="mini-vacio">Sin miembros activos.</p>';
+}
+
+/* Clic en "Datos por completar": abre Miembros filtrado por lo que falta */
+$('#pendientesDatos').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-falta]');
+  if (!item) return;
+  $('#btnLimpiarFiltros').click();
+  FILTROS.falta = item.dataset.falta;
+  $('#fFalta').value = FILTROS.falta;
+  if ($('#fFalta')._rebuild) $('#fFalta')._rebuild();
+  $('#filterEstado').value = 'activos';
+  if ($('#filterEstado')._rebuild) $('#filterEstado')._rebuild();
+  llenarOpcionesFiltros();
+  $('#filtrosAvanzados').classList.remove('hidden');
+  goTab('miembros');
+  renderMembersTable();
+});
+
+/* Clic en un registro reciente o un cumpleaños: abre la ficha */
+['#recientes', '#cumpleanos'].forEach(sel => $(sel).addEventListener('click', (e) => {
+  const item = e.target.closest('[data-id]');
   if (!item) return;
   const m = MEMBERS.find(x => x.id === Number(item.dataset.id));
   if (m) openViewModal(m);
-});
+}));
 
 /* ============================================================
    REGISTRAR — cola de planillas + IA + recorte de foto
@@ -1523,7 +1617,7 @@ function customizarSelect(sel) {
 }
 
 /* ---------------- Filtros avanzados ---------------- */
-const FILTROS = { funcion: '', foto: '', anioRegistro: '', anioConversion: '', mesCumple: '', direccion: '' };
+const FILTROS = { funcion: '', foto: '', falta: '', anioRegistro: '', anioConversion: '', mesCumple: '', direccion: '' };
 
 function anioEnTexto(t) {
   const m = String(t || '').match(/(19|20)\d{2}/);
@@ -1540,6 +1634,7 @@ function matchAvanzado(m) {
   if (FILTROS.funcion && (m.funcion || '').trim() !== FILTROS.funcion) return false;
   if (FILTROS.foto === 'si' && !m.foto) return false;
   if (FILTROS.foto === 'no' && m.foto) return false;
+  if (FILTROS.falta && String(m[FILTROS.falta] || '').trim()) return false;
   if (FILTROS.anioRegistro) {
     const anio = m.fechaRegistro ? String(new Date(m.fechaRegistro).getFullYear()) : '';
     if (anio !== FILTROS.anioRegistro) return false;
@@ -1582,7 +1677,7 @@ $('#btnFiltros').addEventListener('click', () => {
   panel.classList.toggle('hidden', !abrir);
 });
 
-[['#fFuncion', 'funcion'], ['#fFoto', 'foto'], ['#fAnioRegistro', 'anioRegistro'],
+[['#fFuncion', 'funcion'], ['#fFoto', 'foto'], ['#fFalta', 'falta'], ['#fAnioRegistro', 'anioRegistro'],
  ['#fAnioConversion', 'anioConversion'], ['#fMesCumple', 'mesCumple']].forEach(([sel, clave]) => {
   $(sel).addEventListener('change', (e) => {
     FILTROS[clave] = e.target.value;
@@ -1597,10 +1692,14 @@ $('#fDireccion').addEventListener('input', (e) => {
 
 $('#btnLimpiarFiltros').addEventListener('click', () => {
   Object.keys(FILTROS).forEach(k => { FILTROS[k] = ''; });
-  ['#fFuncion', '#fFoto', '#fAnioRegistro', '#fAnioConversion', '#fMesCumple'].forEach(s => { $(s).value = ''; });
+  ['#fFuncion', '#fFoto', '#fFalta', '#fAnioRegistro', '#fAnioConversion', '#fMesCumple'].forEach(s => {
+    $(s).value = '';
+    if ($(s)._rebuild) $(s)._rebuild();
+  });
   $('#fDireccion').value = '';
   $('#searchInput').value = '';
   $('#filterEstado').value = 'todos';
+  if ($('#filterEstado')._rebuild) $('#filterEstado')._rebuild();
   renderMembersTable();
 });
 
@@ -1832,14 +1931,41 @@ $('#editForm').addEventListener('submit', async (e) => {
   toast('✔ Cambios guardados');
 });
 
+/* --- Menú "Importar / exportar" --- */
+function cerrarMenuDatos() {
+  $('#menuDatos').classList.add('hidden');
+  $('#btnMenuDatos').setAttribute('aria-expanded', 'false');
+}
+$('#btnMenuDatos').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const abrir = $('#menuDatos').classList.contains('hidden');
+  $('#menuDatos').classList.toggle('hidden', !abrir);
+  $('#btnMenuDatos').setAttribute('aria-expanded', String(abrir));
+  if (abrir) $('#menuDatos .menu-item').focus();
+});
+$('#menuDatos').addEventListener('click', (e) => { if (e.target.closest('.menu-item')) cerrarMenuDatos(); });
+document.addEventListener('click', (e) => { if (!e.target.closest('.menu-wrap')) cerrarMenuDatos(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#menuDatos').classList.contains('hidden')) {
+    cerrarMenuDatos();
+    $('#btnMenuDatos').focus();
+  }
+});
+
 /* --- Respaldo / restauración / CSV --- */
-function downloadFile(name, content, type) {
-  const blob = new Blob([content], { type });
+function downloadBlob(name, blob) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  a.remove();
+  // Revocar enseguida cancela la descarga en algunos navegadores (Firefox, Safari)
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+function downloadFile(name, content, type) {
+  downloadBlob(name, new Blob([content], { type }));
 }
 
 $('#btnExportJSON').addEventListener('click', () => {
@@ -1901,7 +2027,7 @@ $('#btnExportCSV').addEventListener('click', () => {
   const headers = ['Nombres y apellidos','C.I.','Teléfono','Fecha de nacimiento','Lugar de nacimiento',
     'Estado civil','Correo','Dirección','Ocupación','Profesión','Esposo(a)','Hijos','Padres',
     'Vive con padres','Vive con esposo/hijos','Recibió a Cristo','Bautizo','Tiempo en la Confraternidad',
-    'Función','Fecha de registro'];
+    'Función','Estado','Fecha de registro'];
   const cols = ['nombres','ci','telefono','fechaNacimiento','lugarNacimiento','estadoCivil','correo',
     'direccion','ocupacion','profesion','esposo','hijos','padres','viveConPadres','viveConEsposoHijos',
     'recibioCristo','bautizo','tiempoConfraternidad','funcion'];
@@ -1911,7 +2037,7 @@ $('#btnExportCSV').addEventListener('click', () => {
   for (const m of MEMBERS) {
     lines.push([...cols.map(c =>
       q(c === 'ci' ? fmtCI(m.ci) : c === 'telefono' ? fmtTel(m.telefono) : m[c])
-    ), q(fmtDate(m.fechaRegistro))].join(';'));
+    ), q(m.estado || 'Activo'), q(fmtDate(m.fechaRegistro))].join(';'));
   }
   // BOM para que Excel abra bien los acentos
   downloadFile(`membresia_cfnj_${settings.anio}.csv`, BOM + lines.join('\r\n'), 'text/csv;charset=utf-8');
@@ -1972,11 +2098,25 @@ $('#btnExportLista').addEventListener('click', () => {
 });
 
 $('#btnListaCopiar').addEventListener('click', async () => {
+  const texto = listaTexto(listaBasica());
+  let copiado = false;
   try {
-    await navigator.clipboard.writeText(listaTexto(listaBasica()));
+    await navigator.clipboard.writeText(texto);
+    copiado = true;
+  } catch {
+    // Respaldo para navegadores sin la API del portapapeles o sin permiso
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { copiado = document.execCommand('copy'); } catch {}
+    ta.remove();
+  }
+  if (copiado) {
     $('#listaModal').classList.add('hidden');
     toast('Lista copiada: pégala en WhatsApp o donde la necesites');
-  } catch {
+  } else {
     toast('No se pudo copiar al portapapeles; descarga el TXT', 'err');
   }
 });
@@ -2068,6 +2208,30 @@ $('#fotosCheckAll').addEventListener('change', (e) => {
 $('#btnFotosDescargar').addEventListener('click', async () => {
   const sel = MEMBERS.filter(m => fotosSeleccion.has(m.id) && m.foto);
   if (!sel.length) return;
+  // Varias fotos: un solo ZIP (los navegadores bloquean muchas descargas seguidas)
+  if (sel.length > 1 && window.JSZip) {
+    toast(`Preparando ${sel.length} fotos…`);
+    const zip = new JSZip();
+    const usados = new Set();
+    let fallos = 0;
+    for (const m of sel) {
+      try {
+        const blob = await (await fetch(m.foto)).blob(); // sirve igual para base64 y Storage
+        const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+        // Sin tildes: el Explorador de Windows muestra mal los nombres acentuados dentro de un ZIP
+        const base = `foto_${nombreArchivo(m)}`.normalize('NFD').replace(/[̀-ͯ]/g, '');
+        let nombre = base;
+        for (let i = 2; usados.has(nombre); i++) nombre = `${base}_${i}`;
+        usados.add(nombre);
+        zip.file(`${nombre}.${ext}`, blob);
+      } catch { fallos++; }
+    }
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(`fotos_membresia_${settings.anio}.zip`, zipBlob);
+    $('#fotosModal').classList.add('hidden');
+    toast(`${sel.length - fallos} foto(s) descargadas en un ZIP` + (fallos ? `, ${fallos} no se pudieron bajar` : ''), fallos ? 'err' : 'ok');
+    return;
+  }
   toast(`Descargando ${sel.length} foto(s)…`);
   for (const m of sel) {
     let href = m.foto, ext = 'jpg';
@@ -2951,7 +3115,7 @@ async function importSeeds() {
 
 /* Esqueleto de carga: se muestra mientras bajan los datos la primera vez */
 function mostrarSkeleton() {
-  ['#statTotal', '#statFoto', '#statFuncion', '#statMes']
+  ['#statTotal', '#statActivos', '#statFoto', '#statFuncion', '#statMes']
     .forEach(s => { $(s).innerHTML = '<span class="sk sk-num"></span>'; });
   $('#recientes').innerHTML = Array.from({ length: 4 }, () => `
     <div class="recent-item">
@@ -2996,7 +3160,7 @@ async function cargarApp() {
   renderDashboard();
   updateModeloPicker();
   // Desplegables con el estilo del sistema
-  ['#filterEstado', '#sortOrden', '#fFoto', '#fMesCumple', '#fFuncion', '#fAnioRegistro', '#fAnioConversion']
+  ['#filterEstado', '#sortOrden', '#fFoto', '#fFalta', '#fMesCumple', '#fFuncion', '#fAnioRegistro', '#fAnioConversion']
     .forEach(s => customizarSelect($(s)));
   customizarSelect($('#editForm').elements.estado);
   $('#checkQR').checked = settings.carnetQR !== false;
