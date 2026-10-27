@@ -3,7 +3,7 @@
    miembros guardadas en Storage; nunca cachea los datos de la tabla
    de Supabase ni la lectura de planillas (/api/). */
 
-const CACHE = 'ccnj-v10';
+const CACHE = 'ccnj-v11';
 const CACHE_FOTOS = 'ccnj-fotos-v1';
 const APP_SHELL = [
   './',
@@ -60,18 +60,30 @@ self.addEventListener('fetch', (e) => {
     return; // tabla y autenticación: directo a la red
   }
 
-  // Interfaz y librerías: caché primero, red como respaldo,
-  // y actualización del caché en segundo plano
-  e.respondWith(
-    caches.match(e.request).then((hit) => {
-      const red = fetch(e.request).then((resp) => {
-        if (resp && (resp.ok || resp.type === 'opaque')) {
+  // Archivos propios (HTML/JS/CSS, config-nube.js): red primero y caché
+  // solo sin internet. Con "caché primero" un despliegue nuevo no llegaba
+  // hasta la segunda recarga (p. ej. la URL de Supabase seguía siendo la vieja).
+  if (url.origin === self.location.origin) {
+    e.respondWith(
+      fetch(e.request).then((resp) => {
+        if (resp && resp.ok) {
           const copia = resp.clone();
           caches.open(CACHE).then((c) => c.put(e.request, copia));
         }
         return resp;
-      }).catch(() => hit);
-      return hit || red;
-    })
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Librerías de CDN (versión fija, no cambian): caché primero
+  e.respondWith(
+    caches.match(e.request).then((hit) => hit || fetch(e.request).then((resp) => {
+      if (resp && (resp.ok || resp.type === 'opaque')) {
+        const copia = resp.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copia));
+      }
+      return resp;
+    }))
   );
 });

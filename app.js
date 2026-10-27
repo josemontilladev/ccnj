@@ -3013,6 +3013,14 @@ async function cargarApp() {
   // Permite abrir la app sin internet (cachea la interfaz) y la hace instalable
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    // Si llega una versión nueva del service worker, recarga una vez para
+    // no seguir corriendo los archivos viejos (solo si ya había uno antes)
+    if (navigator.serviceWorker.controller) {
+      let recargado = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!recargado) { recargado = true; location.reload(); }
+      });
+    }
   }
 
   await openDB(); // en modo nube funciona como caché + cola offline
