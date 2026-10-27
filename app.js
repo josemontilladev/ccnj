@@ -2376,6 +2376,51 @@ function carnetTricolor(m) {
   </div>`;
 }
 
+/* Modelo 8 — Bandera: fondo azul con la bandera ondeando y las estrellas;
+   foto a la izquierda y datos a la derecha (diseño de Canva de la iglesia).
+   Las estrellas van como SVG en <img> para que html2canvas las exporte. */
+const ESTRELLAS_SVG = (() => {
+  const estrella = (cx, cy, r) => {
+    const pts = [];
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5;
+      const rr = i % 2 ? r * 0.4 : r;
+      pts.push((cx + rr * Math.cos(a)).toFixed(1) + ',' + (cy + rr * Math.sin(a)).toFixed(1));
+    }
+    return `<polygon points="${pts.join(' ')}"/>`;
+  };
+  // Ocho estrellas en arco, como en la bandera
+  const arco = Array.from({ length: 8 }, (_, i) => {
+    const a = Math.PI * (0.95 + i * 0.157);
+    return estrella(100 + 70 * Math.cos(a), 95 + 55 * Math.sin(a), 11);
+  }).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 110"><g fill="#fff">${arco}</g></svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(svg);
+})();
+
+function carnetBandera(m) {
+  const p = carnetParts(m);
+  return `
+  <div class="carnet m-bandera">
+    <div class="c-flag"><i class="f-am"></i><i class="f-az"></i><i class="f-ro"></i></div>
+    <img class="c-estrellas" src="${ESTRELLAS_SVG}" alt="">
+    ${tieneElem('logo') ? `<img class="c-logo" src="${p.logoSrc}" alt="">` : ''}
+    ${tieneElem('rif') ? `<div class="c-rif">${p.rif}</div>` : ''}
+    <div class="c-fila">
+      ${tieneElem('foto') ? p.fotoHTML : ''}
+      <div class="c-datos">
+        ${tieneElem('nombre') ? `<div class="${p.nameClass}">${p.name}</div>` : ''}
+        ${tieneElem('ci') ? p.ciHTML : ''}
+        ${tieneElem('funcion') ? `<div class="c-funcion">${p.funcion}</div>` : ''}
+        ${stackHTML(p, m, ['logo', 'rif', 'foto', 'nombre', 'ci', 'funcion', 'qr'])}
+      </div>
+    </div>
+    <div class="c-anio">MEMBRESÍA ${p.anio}</div>
+    ${tieneElem('qr') ? p.qrHTML : ''}
+    ${tieneElem('sede') ? `<div class="c-sede">${p.sede}</div>` : ''}
+  </div>`;
+}
+
 const CARNET_MODELOS = {
   clasico: { nombre: 'Clásico', fn: carnetClasico },
   azul: { nombre: 'Azul', fn: carnetAzul },
@@ -2383,7 +2428,8 @@ const CARNET_MODELOS = {
   oscuro: { nombre: 'Elegante', fn: carnetOscuro },
   verde: { nombre: 'Verde', fn: carnetVerde },
   minimal: { nombre: 'Blanco', fn: carnetMinimal },
-  tricolor: { nombre: 'Tricolor', fn: carnetTricolor }
+  tricolor: { nombre: 'Tricolor', fn: carnetTricolor },
+  bandera: { nombre: 'Bandera', fn: carnetBandera }
 };
 
 function carnetHTML(m) {
@@ -2990,6 +3036,18 @@ async function cargarApp() {
   }
 
   await openDB(); // en modo nube funciona como caché + cola offline
+
+  // Hay configuración de nube pero la librería de Supabase no cargó (CDN
+  // bloqueado o sin internet en la primera visita): no caer en silencio al
+  // modo local, que mostraría una base vacía como si no hubiera miembros.
+  if (NUBE && !sb) {
+    $('#loginOverlay').classList.remove('hidden');
+    $('#loginForm').querySelectorAll('input, button').forEach(el => el.classList.add('hidden'));
+    $('#loginError').textContent = 'No se pudo conectar con la base de datos en la nube. ' +
+      'Revisa tu conexión a internet y recarga la página.';
+    $('#loginError').classList.remove('hidden');
+    return;
+  }
 
   if (sb) {
     // Modo nube: primero la sesión, luego los datos
