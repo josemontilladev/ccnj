@@ -46,6 +46,13 @@ nombre. El rol del equipo (Líder / Colaborador) es la función que se muestra e
 y el carnet; si la persona no está en ningún equipo, se muestra su función de la planilla sin las
 menciones a oikos. El texto original de la planilla no se modifica.
 
+## Historial de cambios
+
+- **En la app** (sección Historial): triggers en `miembros` y `equipos` escriben en
+  `public.historial` quién creó, editó o borró cada registro y qué campos cambiaron. La app solo
+  puede leerlo. Los miembros borrados se pueden restaurar desde ahí.
+- **Del sistema**: `CHANGELOG.md`.
+
 ## Keep-alive (que Supabase no pause el proyecto)
 
 Supabase pausa los proyectos gratuitos tras 7 días sin uso. Dos crons llaman a la función

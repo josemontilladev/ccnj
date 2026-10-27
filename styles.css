@@ -1847,6 +1847,52 @@ svg.lucide {
   .eq-fila .eq-quitar { grid-area: quitar; }
 }
 
+/* ================= HISTORIAL DE CAMBIOS ================= */
+.hist-lista {
+  background: var(--blanco); border: 1px solid var(--linea); border-radius: var(--radio);
+  padding: 6px 22px 14px;
+}
+.hist-dia {
+  font-size: 15px; font-weight: 600; color: var(--gris);
+  margin: 18px 0 6px; text-transform: none;
+}
+.hist-dia::first-letter { text-transform: uppercase; }
+.hist-item {
+  display: grid; grid-template-columns: 64px 14px minmax(0, 1fr) auto;
+  gap: 0 12px; align-items: start;
+  padding: 9px 0; border-bottom: 1px solid var(--linea);
+}
+.hist-item:last-child { border-bottom: 0; }
+.hist-hora { color: var(--gris); font-size: 14px; font-variant-numeric: tabular-nums; padding-top: 1px; white-space: nowrap; }
+.hist-punto { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; background: var(--azul); }
+.hist-crear .hist-punto { background: var(--verde); }
+.hist-borrar .hist-punto { background: #c62828; }
+.hist-frase { font-size: 15px; }
+.hist-enlace {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; font-weight: 700; color: var(--azul);
+}
+.hist-enlace:hover { text-decoration: underline; }
+.hist-cambios { list-style: none; margin-top: 4px; display: flex; flex-direction: column; gap: 3px; font-size: 14px; color: #34445f; }
+.hist-campo { font-weight: 700; color: var(--tinta); margin-right: 4px; }
+.hist-cambios del { color: #8a3b3b; text-decoration: line-through; }
+.hist-cambios ins { color: #0a6626; text-decoration: none; font-weight: 600; }
+.hist-vacio { font-style: italic; color: var(--gris); text-decoration: none; }
+.btn-sm { padding: 6px 12px; font-size: 14px; }
+.hist-mas { display: flex; justify-content: center; margin-top: 14px; }
+
+.view-hist:empty { display: none; }
+.view-hist { margin-top: 18px; border-top: 1px solid var(--linea); padding-top: 12px; }
+.view-hist h3 { font-size: 15px; margin-bottom: 6px; }
+.hist-mini { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-size: 13.5px; color: var(--gris); padding: 4px 0; border-bottom: 1px dashed var(--linea); }
+.hist-mini span:last-child { color: var(--tinta); }
+
+@media (max-width: 600px) {
+  .hist-lista { padding: 4px 12px 10px; }
+  .hist-item { grid-template-columns: 52px 10px minmax(0, 1fr); }
+  .hist-item > .btn { grid-column: 3; justify-self: start; margin-top: 6px; }
+}
+
 /* ================= AVISO DE SINCRONIZACIÓN ================= */
 .backup-banner.banner-error {
   background: #fdecec;

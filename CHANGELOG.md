@@ -1,0 +1,80 @@
+# Historial de cambios
+
+Cambios del Sistema de Membresía de la Confraternidad Cristiana Nueva Jerusalén,
+del más reciente al más antiguo. El registro de quién cambió qué dato (miembros y
+equipos) vive dentro de la app, en la sección **Historial**.
+
+## 2026-10-27
+
+### Agregado
+- **Historial de cambios en la app.** Registra quién creó, editó o borró cada
+  miembro y equipo, cuándo y qué campos cambiaron. Lo escriben triggers de la base
+  de datos, así que queda registrado todo cambio sin importar desde dónde se haga.
+  Permite restaurar un miembro borrado, y la ficha de cada miembro muestra sus
+  últimos cambios.
+- **Equipos de cosecha** (reemplazan a los oikos): cada equipo tiene un líder y sus
+  colaboradores, vinculados a su ficha o solo con su nombre si aún no están
+  registrados. Se cargaron los 26 equipos del documento de la cosecha (104 personas).
+- **Carga masiva de planillas**: acepta PDF del escáner (una planilla por página),
+  lee dos planillas a la vez, muestra el avance en vivo, se puede detener y
+  reintenta sola cuando la IA está ocupada. Vincula a los miembros nuevos con su
+  equipo cuando el nombre coincide sin ambigüedad.
+- **Carnets Bandera, Bandera v2 y Bandera v3**, basados en el diseño de Canva.
+- **Inicio rediseñado**: resumen de la membresía del año con el avance de carnets
+  listos, cumpleaños del mes, datos por completar (con acceso directo al filtro) y
+  distribución por funciones.
+- Filtro "Le falta" (foto, cédula, teléfono o fecha de nacimiento) en Miembros.
+- **Keep-alive**: cron diario de Vercel y workflow de GitHub cada 12 horas para que
+  Supabase no pause el proyecto.
+
+### Cambiado
+- **Base de datos nueva en Supabase.** Se migraron desde el respaldo los miembros,
+  las cuentas (con sus contraseñas) y el código de invitación. Las fotos pasaron a
+  Supabase Storage.
+- La función que se muestra en tabla, ficha y carnet es el rol del equipo (Líder o
+  Colaborador). A quien no está en un equipo se le quitan las menciones a oikos. El
+  texto original de la planilla no se modifica.
+- Diseño general: tipografía Lexend y Source Sans 3; la franja tricolor marca la
+  sección activa; tabla de miembros más compacta.
+- Importar y exportar quedan agrupados en un solo menú en Miembros. Las fotos se
+  descargan en un ZIP; el CSV incluye estado, rol y equipo; el respaldo JSON incluye
+  los equipos.
+- El service worker pide primero la versión nueva de los archivos de la app (antes
+  un despliegue nuevo no llegaba hasta la segunda recarga).
+
+### Corregido
+- El inicio de sesión fallaba con "Sin internet" porque el navegador seguía usando
+  la configuración del proyecto de Supabase anterior.
+- Si la librería de Supabase no cargaba, la app abría en modo local vacío sin
+  avisar; ahora muestra el error.
+- Algunas descargas se cancelaban en Firefox y Safari.
+- "Copiar lista" fallaba en navegadores sin permiso de portapapeles.
+- Los nombres con tildes salían dañados dentro del ZIP de fotos.
+- Los vínculos de los equipos cargados desde el documento se guardaron como texto
+  y no se reconocían; se convirtieron a número y la app ahora los normaliza.
+
+## 2026-09-14
+
+- Seguridad: el código de invitación pasó al servidor (ya no está en la app).
+- Detección de planillas duplicadas (misma imagen, misma persona y cédula única en
+  la base).
+- Respaldo y restauración sin duplicados, aviso de cambios rechazados al
+  sincronizar y botón para mover las fotos a Supabase Storage.
+
+## 2026-07-23
+
+- Modelos de carnet Verde, Blanco y Tricolor, editor de elementos del carnet y
+  formato de cédulas y teléfonos.
+- Descarga de fotos de los miembros, planilla en blanco imprimible y exportar lista
+  básica (texto, TXT, Word, PDF).
+- Página de presentación, orden alfabético en la tabla y navegación entre fichas.
+- Carga rápida de miembros (copia local primero y fotos en segundo plano).
+
+## 2026-07-21
+
+- Primera versión: app web, base de datos en Supabase con inicio de sesión y
+  lectura de planillas manuscritas con IA.
+- Registro de cuentas con código de invitación.
+- Funciona sin internet (PWA) con cola de cambios y sincronización automática.
+- Diseño adaptable a teléfono, tableta y computadora; filtros avanzados e impresión
+  de carnets nueve por hoja.

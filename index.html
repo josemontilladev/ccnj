@@ -46,6 +46,9 @@
       <button class="nav-item" data-tab="carnets">
         <span class="nav-ico"><i data-lucide="id-card"></i></span> Carnets
       </button>
+      <button class="nav-item" data-tab="historial">
+        <span class="nav-ico"><i data-lucide="history"></i></span> Historial
+      </button>
     </nav>
     <div class="sidebar-footer">
       <button class="nav-item" id="btnAjustes">
@@ -395,6 +398,35 @@
         <label class="check-inline"><input type="checkbox" id="equiposSinFicha"> Solo personas sin ficha</label>
       </div>
       <div id="equiposGrid" class="equipos-grid"></div>
+    </section>
+
+    <!-- ========== HISTORIAL DE CAMBIOS ========== -->
+    <section class="tab" id="tab-historial">
+      <header class="page-head">
+        <div>
+          <h1>Historial de cambios</h1>
+          <p class="subtitle">Quién registró, editó o borró cada miembro y equipo, y cuándo</p>
+        </div>
+      </header>
+      <div class="toolbar">
+        <div class="search-wrap">
+          <i data-lucide="search"></i>
+          <input type="search" id="histSearch" class="search" placeholder="Buscar por nombre del miembro o líder del equipo…">
+        </div>
+        <select id="histTabla" class="filter-select">
+          <option value="">Miembros y equipos</option>
+          <option value="miembros">Solo miembros</option>
+          <option value="equipos">Solo equipos</option>
+        </select>
+        <select id="histAccion" class="filter-select">
+          <option value="">Todas las acciones</option>
+          <option value="crear">Registros nuevos</option>
+          <option value="editar">Ediciones</option>
+          <option value="borrar">Borrados</option>
+        </select>
+      </div>
+      <div id="histLista" class="hist-lista"></div>
+      <div class="hist-mas"><button class="btn btn-ghost hidden" id="btnHistMas">Cargar más</button></div>
     </section>
 
     <!-- ========== CARNETS ========== -->

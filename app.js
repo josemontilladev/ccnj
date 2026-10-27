@@ -503,6 +503,7 @@ function renderTab(name) {
   if (name === 'miembros') renderMembersTable();
   if (name === 'carnets') renderCarnetList();
   if (name === 'equipos') renderEquipos();
+  if (name === 'historial') cargarHistorial();
   if (name === 'registrar') $('#apiKeyWarning').classList.toggle('hidden', hasAI());
 }
 
@@ -2050,6 +2051,7 @@ function openViewModal(m) {
           </div>
         </div>
         <div class="detail-grid">${items}</div>
+        <div id="viewHist" class="view-hist"></div>
       </div>
       <div class="view-carnet">${carnetHTML(m)}</div>
     </div>`;
@@ -2059,6 +2061,7 @@ function openViewModal(m) {
   $('#viewPos').textContent = i >= 0 ? `${i + 1} de ${lista.length}` : '';
   $('#viewModal').classList.remove('hidden');
   refreshIcons();
+  cargarHistorialMiembro(m.id);
 }
 
 /* Pasar a la ficha anterior/siguiente sin cerrar el modal (también con ← →) */
@@ -3135,7 +3138,17 @@ $('#btnDownloadPNG').addEventListener('click', () => downloadCarnetPNG(selectedM
    (y como copia sin internet) en localStorage.
    ============================================================ */
 const EQUIPOS_KEY = 'cfnj_equipos';
-let EQUIPOS = (() => { try { return JSON.parse(localStorage.getItem(EQUIPOS_KEY) || '[]'); } catch { return []; } })();
+/* El id de la ficha siempre como número (datos cargados a mano pueden traerlo como texto) */
+function normalizarEquipo(eq) {
+  eq.integrantes = (eq.integrantes || []).map(p => ({
+    ...p,
+    miembroId: p.miembroId == null || p.miembroId === '' || !Number.isFinite(Number(p.miembroId)) ? null : Number(p.miembroId)
+  }));
+  return eq;
+}
+let EQUIPOS = (() => {
+  try { return JSON.parse(localStorage.getItem(EQUIPOS_KEY) || '[]').map(normalizarEquipo); } catch { return []; }
+})();
 
 function guardarEquiposLocal() {
   try { localStorage.setItem(EQUIPOS_KEY, JSON.stringify(EQUIPOS)); } catch {}
@@ -3146,7 +3159,7 @@ async function cargarEquipos() {
   try {
     const { data, error } = await sb.from('equipos').select('*').order('orden').order('id');
     if (error) throw error;
-    EQUIPOS = data || [];
+    EQUIPOS = (data || []).map(normalizarEquipo);
     guardarEquiposLocal();
   } catch { /* sin internet: queda la copia local */ }
 }
@@ -3158,7 +3171,7 @@ async function guardarEquipo(eq) {
     if (eq.id != null) rec.id = eq.id;
     const { data, error } = await sb.from('equipos').upsert(rec).select().single();
     if (error) throw new Error(esErrorRed(error) ? 'Se necesita conexión a internet para guardar equipos' : error.message);
-    Object.assign(eq, data);
+    Object.assign(eq, normalizarEquipo(data));
   } else if (eq.id == null) {
     eq.id = Date.now();
   }
@@ -3386,6 +3399,189 @@ $('#btnEqBorrar').addEventListener('click', async () => {
     toast(err.message, 'err');
   }
 });
+
+/* ============================================================
+   HISTORIAL DE CAMBIOS
+   Lo escriben triggers de la base de datos (ver supabase.sql): aquí solo
+   se lee. En modo local no hay historial.
+   ============================================================ */
+const HIST_PAGINA = 50;
+const hist = { filas: [], hayMas: false, cargando: false, pedido: 0 };
+
+const ETIQUETAS_CAMPO = Object.fromEntries([
+  ...VIEW_FIELDS,
+  ['nombres', 'Nombre'], ['funcion', 'Función'], ['foto', 'Foto'], ['estado', 'Estado'],
+  ['renovado', 'Renovación'], ['fechaRegistro', 'Fecha de registro'], ['seedKey', 'Clave de importación']
+]);
+
+const quienHizo = (u) => !u ? 'Alguien' : u.includes('@') ? u.split('@')[0] : u;
+const fmtHora = (iso) => new Date(iso).toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' });
+function fmtDia(iso) {
+  const d = new Date(iso), hoy = new Date();
+  const mismo = (a, b) => a.toDateString() === b.toDateString();
+  if (mismo(d, hoy)) return 'Hoy';
+  if (mismo(d, new Date(hoy.getTime() - 86400000))) return 'Ayer';
+  return d.toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function valorHist(campo, v) {
+  if (v == null || v === '') return '<span class="hist-vacio">vacío</span>';
+  if (campo === 'renovado') return v ? 'renovado' : 'por renovar';
+  if (campo === 'fechaRegistro') return esc(fmtDate(v));
+  return esc(String(v));
+}
+
+/* Cambios de un equipo: quién entró, salió, cambió de rol o se vinculó a su ficha */
+function cambiosEquipo(antes, despues) {
+  const clave = (p) => norm(p.nombre || '');
+  const a = new Map((antes || []).map(p => [clave(p), p]));
+  const d = new Map((despues || []).map(p => [clave(p), p]));
+  const out = [];
+  for (const [k, p] of d) {
+    const q = a.get(k);
+    if (!q) { out.push(`Agregó a <b>${esc(p.nombre)}</b> como ${esc(p.rol)}`); continue; }
+    if (q.rol !== p.rol) out.push(`<b>${esc(p.nombre)}</b>: ${esc(q.rol)} → ${esc(p.rol)}`);
+    if ((q.miembroId ?? null) !== (p.miembroId ?? null)) {
+      out.push(p.miembroId != null
+        ? `Vinculó a <b>${esc(p.nombre)}</b> con su ficha`
+        : `Quitó la ficha de <b>${esc(p.nombre)}</b>`);
+    }
+  }
+  for (const [k, q] of a) if (!d.has(k)) out.push(`Quitó a <b>${esc(q.nombre)}</b> del equipo`);
+  return out;
+}
+
+function histItemHTML(h) {
+  const quien = `<b>${esc(quienHizo(h.usuario))}</b>`;
+  const nombre = esc(h.nombre || 'sin nombre');
+  const existe = h.tabla === 'miembros' && MEMBERS.some(m => m.id === h.registro_id);
+  const enlace = existe ? `<button class="hist-enlace" data-ver="${h.registro_id}">${nombre}</button>` : `<b>${nombre}</b>`;
+  let frase = '', detalle = [], extra = '';
+  const c = h.cambios || {};
+
+  if (h.tabla === 'miembros') {
+    if (h.accion === 'crear') frase = `${quien} registró a ${enlace}`;
+    else if (h.accion === 'borrar') {
+      frase = `${quien} borró la ficha de ${enlace}`;
+      if (!existe && c.nombres) extra = `<button class="btn btn-ghost btn-sm" data-restaurar="${h.id}"><i data-lucide="undo-2"></i> Restaurar</button>`;
+    } else {
+      frase = `${quien} editó la ficha de ${enlace}`;
+      detalle = Object.entries(c).map(([campo, par]) => campo === 'foto'
+        ? `<span class="hist-campo">Foto</span> ${par[1] ? (par[0] ? 'cambiada' : 'agregada') : 'quitada'}`
+        : `<span class="hist-campo">${esc(ETIQUETAS_CAMPO[campo] || campo)}</span> <del>${valorHist(campo, par[0])}</del> → <ins>${valorHist(campo, par[1])}</ins>`);
+    }
+  } else {
+    const eq = `<b>equipo de ${nombre}</b>`;
+    const [antes, despues] = c.integrantes || [];
+    if (h.accion === 'crear') frase = `${quien} creó el ${eq} (${(despues || []).length} personas)`;
+    else if (h.accion === 'borrar') frase = `${quien} eliminó el ${eq}`;
+    else { frase = `${quien} modificó el ${eq}`; detalle = cambiosEquipo(antes, despues); }
+  }
+  return `
+    <div class="hist-item hist-${h.accion}">
+      <span class="hist-hora">${fmtHora(h.fecha)}</span>
+      <span class="hist-punto" aria-hidden="true"></span>
+      <div class="hist-cuerpo">
+        <p class="hist-frase">${frase}</p>
+        ${detalle.length ? `<ul class="hist-cambios">${detalle.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+      </div>
+      ${extra}
+    </div>`;
+}
+
+function pintarHistorial() {
+  const box = $('#histLista');
+  if (!hist.filas.length) {
+    box.innerHTML = hist.cargando ? '<p class="empty-msg">Cargando…</p>'
+      : '<p class="empty-msg">No hay cambios registrados con estos filtros.</p>';
+    $('#btnHistMas').classList.add('hidden');
+    return;
+  }
+  let html = '', dia = '';
+  for (const h of hist.filas) {
+    const d = fmtDia(h.fecha);
+    if (d !== dia) { html += `<h3 class="hist-dia">${d}</h3>`; dia = d; }
+    html += histItemHTML(h);
+  }
+  box.innerHTML = html;
+  $('#btnHistMas').classList.toggle('hidden', !hist.hayMas);
+  refreshIcons();
+}
+
+async function cargarHistorial(reiniciar = true) {
+  if (!sb) {
+    $('#histLista').innerHTML = '<p class="empty-msg">El historial de cambios solo está disponible con la base de datos en la nube.</p>';
+    return;
+  }
+  const pedido = ++hist.pedido; // descarta respuestas viejas si se escribe rápido en el buscador
+  if (reiniciar) hist.filas = [];
+  hist.cargando = true;
+  if (reiniciar) pintarHistorial();
+  let q = sb.from('historial').select('*').order('fecha', { ascending: false }).order('id', { ascending: false })
+    .range(hist.filas.length, hist.filas.length + HIST_PAGINA - 1);
+  const texto = $('#histSearch').value.trim();
+  if (texto) q = q.ilike('nombre', `%${texto.replace(/[%_]/g, '')}%`);
+  if ($('#histTabla').value) q = q.eq('tabla', $('#histTabla').value);
+  if ($('#histAccion').value) q = q.eq('accion', $('#histAccion').value);
+  const { data, error } = await q;
+  if (pedido !== hist.pedido) return;
+  hist.cargando = false;
+  if (error) {
+    $('#histLista').innerHTML = `<p class="empty-msg">No se pudo cargar el historial: ${esc(esErrorRed(error) ? 'sin conexión' : error.message)}</p>`;
+    return;
+  }
+  hist.filas.push(...data);
+  hist.hayMas = data.length === HIST_PAGINA;
+  pintarHistorial();
+}
+
+let histTimer = null;
+$('#histSearch').addEventListener('input', () => { clearTimeout(histTimer); histTimer = setTimeout(cargarHistorial, 300); });
+$('#histTabla').addEventListener('change', () => cargarHistorial());
+$('#histAccion').addEventListener('change', () => cargarHistorial());
+$('#btnHistMas').addEventListener('click', () => cargarHistorial(false));
+
+$('#histLista').addEventListener('click', async (e) => {
+  const ver = e.target.closest('[data-ver]');
+  if (ver) {
+    const m = MEMBERS.find(x => x.id === Number(ver.dataset.ver));
+    if (m) openViewModal(m);
+    return;
+  }
+  const rest = e.target.closest('[data-restaurar]');
+  if (!rest) return;
+  const h = hist.filas.find(x => String(x.id) === rest.dataset.restaurar);
+  if (!h) return;
+  const rec = { ...h.cambios };
+  const dup = buscarPersonaDuplicada(rec);
+  if (dup) { toast(`Ya existe ${dup.miembro.nombres} con esos datos: no se restaura para no duplicarlo`, 'err', 7000); return; }
+  if (!confirm(`¿Restaurar la ficha de ${rec.nombres}?`)) return;
+  try {
+    await dbPut(rec);
+    await refreshMembers();
+    toast(`${rec.nombres} restaurado`);
+    cargarHistorial();
+  } catch (err) {
+    toast('No se pudo restaurar: ' + err.message, 'err');
+  }
+});
+
+/* Últimos cambios de un miembro, dentro de su ficha */
+async function cargarHistorialMiembro(id) {
+  const box = $('#viewHist');
+  if (!box || !sb) return;
+  const { data, error } = await sb.from('historial').select('*')
+    .eq('tabla', 'miembros').eq('registro_id', id)
+    .order('fecha', { ascending: false }).limit(8);
+  if (viewingId !== id || !$('#viewHist')) return;
+  if (error || !data.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<h3>Historial de cambios</h3>` + data.map(h => `
+    <div class="hist-mini">
+      <span>${esc(fmtDia(h.fecha))}, ${fmtHora(h.fecha)}</span>
+      <span>${h.accion === 'crear' ? 'Registro' : h.accion === 'borrar' ? 'Borrado' : esc(Object.keys(h.cambios || {}).map(k => ETIQUETAS_CAMPO[k] || k).join(', '))}
+        · ${esc(quienHizo(h.usuario))}</span>
+    </div>`).join('');
+}
 
 /* ============================================================
    AJUSTES
@@ -3699,7 +3895,7 @@ async function cargarApp() {
   renderDashboard();
   updateModeloPicker();
   // Desplegables con el estilo del sistema
-  ['#filterEstado', '#sortOrden', '#fFoto', '#fFalta', '#fMesCumple', '#fFuncion', '#fAnioRegistro', '#fAnioConversion']
+  ['#filterEstado', '#sortOrden', '#fFoto', '#fFalta', '#fMesCumple', '#fFuncion', '#fAnioRegistro', '#fAnioConversion', '#histTabla', '#histAccion']
     .forEach(s => customizarSelect($(s)));
   customizarSelect($('#editForm').elements.estado);
   $('#checkQR').checked = settings.carnetQR !== false;
