@@ -3881,6 +3881,10 @@ function faltantesMiembro(m, campos = camposPendientesElegidos()) {
   return campos.filter(k => !String(m[k] || '').trim()).map(k => etiqueta[k]);
 }
 
+/* A quienes aún no tienen ficha, por ahora solo se les pide esto
+   (el resto de la planilla se pedirá más adelante) */
+const FALTA_SIN_FICHA = 'Cédula y año en que llegó a la iglesia';
+
 /* Filas: miembros con datos faltantes y personas de equipos sin ficha.
    Cada fila sabe a qué equipo pertenece para poder agruparla. */
 function filasPendientes() {
@@ -3905,7 +3909,7 @@ function filasPendientes() {
     for (const eq of EQUIPOS) {
       for (const p of eq.integrantes || []) {
         if (p.miembroId != null) continue;
-        filas.push({ nombre: p.nombre, rol: p.rol, ...datosEquipo(eq), telefono: '', falta: 'Planilla completa', sinFicha: true });
+        filas.push({ nombre: p.nombre, rol: p.rol, ...datosEquipo(eq), telefono: '', falta: FALTA_SIN_FICHA, sinFicha: true });
       }
     }
   }
@@ -3934,7 +3938,7 @@ function tablaPendientesHTML(filas) {
         <td class="nom">${esc(f.nombre)}</td>
         <td>${esc(f.rol || '—')}</td>
         <td class="tel">${esc(f.telefono || '—')}</td>
-        <td>${f.sinFicha ? '<span class="etq-planilla">Planilla completa</span>' : f.completo ? '<span class="etq-ok">✓ Al día</span>' : esc(f.falta)}</td>
+        <td>${f.sinFicha ? `<span class="etq-planilla">${FALTA_SIN_FICHA}</span>` : f.completo ? '<span class="etq-ok">✓ Al día</span>' : esc(f.falta)}</td>
       </tr>`;
   }
   return html + '</tbody>';
@@ -3975,7 +3979,7 @@ $('#btnPendCSV').addEventListener('click', () => {
   const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lineas = [['N°', 'Equipo', 'Líder del equipo', 'Nombre', 'Rol', 'Teléfono', 'Le falta'].map(q).join(';'),
     ...filas.map((f, i) => [i + 1, f.eqOrden === Infinity ? 'Sin equipo' : f.eqOrden, f.lider, f.nombre, f.rol, f.telefono,
-      f.sinFicha ? 'Planilla completa (no está registrado)' : f.completo ? 'Al día' : f.falta].map(q).join(';'))];
+      f.sinFicha ? FALTA_SIN_FICHA : f.completo ? 'Al día' : f.falta].map(q).join(';'))];
   downloadFile(`datos_pendientes_${new Date().toISOString().slice(0, 10)}.csv`, '﻿' + lineas.join('\r\n'), 'text/csv;charset=utf-8');
   toast('Lista de pendientes descargada');
 });
@@ -4028,13 +4032,13 @@ $('#btnPendPDF').addEventListener('click', () => {
     <div class="cifras">
       <div class="cifra"><b>${r.total}</b><span>personas en la lista</span></div>
       ${r.alDia ? `<div class="cifra ok"><b>${r.alDia}</b><span>al día</span></div>` : ''}
-      <div class="cifra"><b>${r.sinFicha}</b><span>deben entregar la planilla</span></div>
+      <div class="cifra"><b>${r.sinFicha}</b><span>sin ficha todavía</span></div>
       <div class="cifra"><b>${r.incompletos}</b><span>con datos incompletos</span></div>
       ${r.equipos ? `<div class="cifra"><b>${r.equipos}</b><span>equipos con pendientes</span></div>` : ''}
     </div>
     <table><colgroup><col class="c-num"><col><col class="c-rol"><col class="c-tel"><col class="c-falta"></colgroup>
       ${tablaPendientesHTML(filas)}</table>
-    <p class="pie">En amarillo: personas que aún no tienen ficha en el sistema; deben llenar la planilla de membresía completa. «Al día»: ficha completa con los datos revisados.</p>
+    <p class="pie">En amarillo: personas que aún no tienen ficha en el sistema; por ahora solo se les pide la cédula y el año en que llegaron a la iglesia. «Al día»: ficha con los datos revisados.</p>
     <script>window.onload = () => setTimeout(() => window.print(), 250);<\/script></body></html>`);
   win.document.close();
 });
@@ -4052,7 +4056,7 @@ $('#btnPendCopiar').addEventListener('click', async () => {
       grupo = g;
       lineas.push(`*${g}*${f.lider ? ` (líder: ${f.lider})` : ''}`);
     }
-    lineas.push(`${f.completo ? '✅' : '•'} ${f.nombre}: ${f.sinFicha ? 'llenar la planilla completa' : f.completo ? 'al día' : f.falta.toLowerCase()}`);
+    lineas.push(`${f.completo ? '✅' : '•'} ${f.nombre}: ${f.sinFicha ? FALTA_SIN_FICHA.toLowerCase() : f.completo ? 'al día' : f.falta.toLowerCase()}`);
   }
   try { await navigator.clipboard.writeText(lineas.join('\n')); toast('Lista copiada: pégala en WhatsApp'); }
   catch { toast('No se pudo copiar; usa Excel o PDF', 'err'); }
