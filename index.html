@@ -693,6 +693,13 @@
         <input type="text" id="carnetTextoInput" placeholder="Ej: Válido hasta diciembre 2026">
       </label>
       <div class="forma-foto">
+        <p class="forma-titulo">Nombre en el carnet</p>
+        <div class="forma-opciones" id="nombreModo" role="radiogroup" aria-label="Nombre en el carnet">
+          <button type="button" data-modo="corto" role="radio">Primer nombre y primer apellido</button>
+          <button type="button" data-modo="completo" role="radio">Nombre completo</button>
+        </div>
+      </div>
+      <div class="forma-foto">
         <p class="forma-titulo">Forma de la foto</p>
         <div class="forma-opciones" id="formaFoto" role="radiogroup" aria-label="Forma de la foto">
           <button type="button" data-forma="modelo" role="radio"><span class="forma-ico f-modelo"></span>Como el modelo</button>
@@ -788,6 +795,7 @@
       <form id="editForm" class="member-form" autocomplete="off">
         <div class="fgrid">
           <label class="f-wide">Nombres y apellidos *<input name="nombres" required></label>
+          <label class="f-wide">Nombre en el carnet<input name="nombreCarnet" placeholder="Vacío = primer nombre y primer apellido"></label>
           <label>C.I.<input name="ci"></label>
           <label>Teléfono<input name="telefono"></label>
           <label>Fecha de nacimiento<input name="fechaNacimiento"></label>

@@ -39,6 +39,9 @@ alter table public.miembros add column if not exists "planillaHash" text;
 alter table public.miembros add column if not exists "planillaPhash" text;
 create index if not exists miembros_planilla_hash on public.miembros ("planillaHash");
 
+-- Nombre corto para el carnet (vacío = primer nombre y primer apellido calculados por la app)
+alter table public.miembros add column if not exists "nombreCarnet" text default '';
+
 -- Seguridad: solo usuarios con sesión iniciada pueden ver y modificar
 alter table public.miembros enable row level security;
 

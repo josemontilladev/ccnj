@@ -288,7 +288,7 @@ function guardarCache(lista) {
 }
 
 /* Todas las columnas menos "foto": las fotos (base64) son lo pesado de bajar */
-const COLUMNAS_SIN_FOTO = 'id,nombres,ci,fechaNacimiento,lugarNacimiento,estadoCivil,correo,telefono,' +
+const COLUMNAS_SIN_FOTO = 'id,nombres,nombreCarnet,ci,fechaNacimiento,lugarNacimiento,estadoCivil,correo,telefono,' +
   'direccion,ocupacion,profesion,esposo,hijos,padres,viveConPadres,viveConEsposoHijos,recibioCristo,' +
   'bautizo,tiempoConfraternidad,funcion,estado,renovado,seedKey,fechaRegistro,planillaHash,planillaPhash';
 
@@ -659,7 +659,7 @@ $('#pendientesDatos').addEventListener('click', (e) => {
 /* ============================================================
    REGISTRAR — cola de planillas + IA + recorte de foto
    ============================================================ */
-const FIELD_KEYS = ['nombres','ci','fechaNacimiento','lugarNacimiento','estadoCivil','correo','telefono',
+const FIELD_KEYS = ['nombres','nombreCarnet','ci','fechaNacimiento','lugarNacimiento','estadoCivil','correo','telefono',
   'direccion','ocupacion','profesion','esposo','hijos','padres','viveConPadres','viveConEsposoHijos',
   'recibioCristo','bautizo','tiempoConfraternidad','funcion'];
 
@@ -2597,14 +2597,43 @@ function memberQRDataUrl(m) {
   } catch { return ''; }
 }
 
+/* ---- Nombre del carnet: primer nombre y primer apellido ----
+   "Juan Carlos Ramos" → "Juan Ramos"; "Ana Cristina Añez Bermúdez" → "Ana Añez";
+   "Mariam de los Ángeles Acayo Lameda" → "Mariam Acayo". Las partículas (de, del,
+   la, los) van unidas a la palabra siguiente y las iniciales ("G.", "M") se ignoran.
+   Con 3 palabras se asume nombre + nombre/apellido + apellido y se toma la última.
+   Si la ficha trae "nombreCarnet", ese manda (para casos como apellidos primero). */
+function nombreCorto(nombre) {
+  const t = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+  const grupos = [];
+  for (let i = 0; i < t.length; i++) {
+    if (/^(de|del|la|las|los|y)$/i.test(t[i]) && i < t.length - 1) {
+      let g = t[i];
+      while (i + 1 < t.length && /^(de|del|la|las|los)$/i.test(t[i + 1])) g += ' ' + t[++i];
+      if (i + 1 < t.length) g += ' ' + t[++i];
+      grupos.push({ txt: g, part: true, ini: /^\p{L}\.?$/u.test(t[i]) });
+    } else {
+      grupos.push({ txt: t[i], part: false, ini: /^\p{L}\.?$/u.test(t[i]) });
+    }
+  }
+  const g = grupos.filter(x => !x.ini);
+  if (g.length <= 2) return g.map(x => x.txt).join(' ');
+  // Con 3 o más palabras el primer apellido es la tercera ("Figueroa" en "Yajaira Josefina Figueroa de Suárez")
+  return `${g[0].txt} ${g[2].txt}`;
+}
+function nombreParaCarnet(m) {
+  if (settings.nombreCarnetModo === 'completo') return m.nombres || '';
+  return (m.nombreCarnet || '').trim() || nombreCorto(m.nombres);
+}
+
 /* ---- Piezas comunes de todos los modelos de carnet ---- */
 function carnetParts(m) {
   const qrUrl = (settings.carnetQR !== false) ? memberQRDataUrl(m) : '';
   return {
     // Logo incrustado en base64: necesario para poder exportar el carnet a PNG
     logoSrc: (window.ASSETS && window.ASSETS.logo) || 'logo.png',
-    name: esc(m.nombres || ''),
-    nameClass: (m.nombres || '').length > 26 ? 'c-name small' : 'c-name',
+    name: esc(nombreParaCarnet(m)),
+    nameClass: nombreParaCarnet(m).length > 26 ? 'c-name small' : 'c-name',
     fotoHTML: m.foto
       ? `<img class="c-photo" src="${m.foto}" alt=""${/^data:/.test(m.foto) ? '' : ' crossorigin="anonymous"'}>`
       : `<div class="c-photo placeholder">${esc(initials(m.nombres))}</div>`,
@@ -2973,6 +3002,7 @@ function setCarnetLayout(l) {
 
 $('#btnEditarCarnet').addEventListener('click', () => {
   pintarFormaFoto();
+  pintarNombreModo();
   renderElemEditor();
   $('#carnetEditorModal').classList.remove('hidden');
 });
@@ -3430,7 +3460,7 @@ const hist = { filas: [], hayMas: false, cargando: false, pedido: 0 };
 
 const ETIQUETAS_CAMPO = Object.fromEntries([
   ...VIEW_FIELDS,
-  ['nombres', 'Nombre'], ['funcion', 'Función'], ['foto', 'Foto'], ['estado', 'Estado'],
+  ['nombres', 'Nombre'], ['nombreCarnet', 'Nombre en el carnet'], ['funcion', 'Función'], ['foto', 'Foto'], ['estado', 'Estado'],
   ['renovado', 'Renovación'], ['fechaRegistro', 'Fecha de registro'], ['seedKey', 'Clave de importación']
 ]);
 
@@ -3609,6 +3639,22 @@ async function cargarHistorialMiembro(id) {
    carnet sale igual en pantalla, en PDF y en PNG.
    ============================================================ */
 const FORMAS_FOTO = ['modelo', 'rect', 'cuad', 'redonda'];
+
+function pintarNombreModo() {
+  const modo = settings.nombreCarnetModo === 'completo' ? 'completo' : 'corto';
+  $$('#nombreModo [data-modo]').forEach(b => {
+    b.classList.toggle('active', b.dataset.modo === modo);
+    b.setAttribute('aria-checked', String(b.dataset.modo === modo));
+  });
+}
+$('#nombreModo').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-modo]');
+  if (!b) return;
+  settings.nombreCarnetModo = b.dataset.modo;
+  saveSettings(settings);
+  pintarNombreModo();
+  renderCarnetPreview();
+});
 
 function pintarFormaFoto() {
   const actual = FORMAS_FOTO.includes(settings.fotoForma) ? settings.fotoForma : 'modelo';

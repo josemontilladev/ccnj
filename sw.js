@@ -3,7 +3,7 @@
    miembros guardadas en Storage; nunca cachea los datos de la tabla
    de Supabase ni la lectura de planillas (/api/). */
 
-const CACHE = 'ccnj-v21';
+const CACHE = 'ccnj-v22';
 const CACHE_FOTOS = 'ccnj-fotos-v2';
 const APP_SHELL = [
   './',
