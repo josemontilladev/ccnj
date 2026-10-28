@@ -396,7 +396,12 @@
           <i data-lucide="search"></i>
           <input type="search" id="equiposSearch" class="search" placeholder="Buscar una persona en los equipos…">
         </div>
-        <label class="check-inline"><input type="checkbox" id="equiposSinFicha"> Solo personas sin ficha</label>
+        <select id="equiposFiltro" class="filter-select" aria-label="Mostrar">
+          <option value="">Todas las personas</option>
+          <option value="pendientes">Con datos pendientes</option>
+          <option value="sinficha">Solo sin ficha</option>
+        </select>
+        <button class="btn btn-ghost" id="btnEquiposPendientes"><i data-lucide="clipboard-check"></i> Lista de pendientes</button>
       </div>
       <div id="equiposGrid" class="equipos-grid"></div>
     </section>
@@ -616,6 +621,7 @@
       <p class="lista-hint">Elige qué datos revisar. La lista sirve para pedirle a cada persona lo que le falta.</p>
       <div class="pend-campos" id="pendCampos"></div>
       <div class="pend-opciones">
+        <label class="check-inline"><input type="checkbox" id="pendSoloEquipos"> Solo personas de los equipos de cosecha</label>
         <label class="check-inline"><input type="checkbox" id="pendEquipos" checked> Incluir personas de los equipos de cosecha que aún no tienen ficha</label>
         <label class="check-inline"><input type="checkbox" id="pendActivos" checked> Solo miembros activos</label>
       </div>

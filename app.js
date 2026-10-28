@@ -3241,7 +3241,7 @@ function badgeFuncion(m) {
 /* ---- Vista de equipos ---- */
 function renderEquipos() {
   const q = norm($('#equiposSearch').value.trim());
-  const soloSinFicha = $('#equiposSinFicha').checked;
+  const filtro = $('#equiposFiltro').value;
   const personas = EQUIPOS.flatMap(e => e.integrantes || []);
   const lideres = personas.filter(p => p.rol === 'Líder').length;
   const sinFicha = personas.filter(p => p.miembroId == null).length;
@@ -3251,7 +3251,8 @@ function renderEquipos() {
     : 'Líderes y colaboradores de cada equipo';
 
   const coincide = (p) => (!q || norm(nombreIntegrante(p)).includes(q) || norm(p.nombre).includes(q)) &&
-    (!soloSinFicha || p.miembroId == null);
+    (filtro !== 'sinficha' || p.miembroId == null) &&
+    (filtro !== 'pendientes' || p.miembroId == null || faltantesMiembro(MEMBERS.find(x => x.id === p.miembroId)).length > 0);
   const visibles = EQUIPOS
     .slice().sort((a, b) => (a.orden || 0) - (b.orden || 0))
     .filter(eq => (eq.integrantes || []).some(coincide));
@@ -3266,13 +3267,15 @@ function renderEquipos() {
   }
   const persona = (p) => {
     const m = p.miembroId != null && MEMBERS.find(x => x.id === p.miembroId);
-    const atenuar = (q || soloSinFicha) && !coincide(p);
+    const atenuar = (q || filtro) && !coincide(p);
+    const faltan = m ? faltantesMiembro(m) : [];
     return `
       <div class="eq-persona ${p.rol === 'Líder' ? 'es-lider' : ''} ${m ? 'con-ficha' : ''} ${atenuar ? 'atenuada' : ''}" ${m ? `data-id="${m.id}"` : ''}>
         <div class="avatar">${m && m.foto ? `<img src="${m.foto}" alt="">` : esc(initials(nombreIntegrante(p)))}</div>
         <div class="eq-persona-txt">
           <span class="eq-nombre">${esc(nombreIntegrante(p))}</span>
-          ${m ? '' : '<span class="eq-sin-ficha">Sin ficha</span>'}
+          ${m ? (faltan.length ? `<span class="eq-sin-ficha">Falta: ${esc(faltan.join(', ').toLowerCase())}</span>` : '')
+              : '<span class="eq-sin-ficha">Sin ficha</span>'}
         </div>
         ${p.rol === 'Líder' ? '<span class="eq-rol">Líder</span>' : ''}
       </div>`;
@@ -3294,7 +3297,14 @@ function renderEquipos() {
 }
 
 $('#equiposSearch').addEventListener('input', renderEquipos);
-$('#equiposSinFicha').addEventListener('change', renderEquipos);
+$('#equiposFiltro').addEventListener('change', renderEquipos);
+$('#btnEquiposPendientes').addEventListener('click', () => {
+  if (!$('#pendCampos').children.length) pintarCamposPendientes();
+  $('#pendSoloEquipos').checked = true;
+  $('#pendEquipos').checked = true;
+  refrescarPendientes();
+  $('#pendModal').classList.remove('hidden');
+});
 $('#equiposGrid').addEventListener('click', (e) => {
   const ed = e.target.closest('[data-editar-equipo]');
   if (ed) { abrirEquipo(EQUIPOS.find(x => String(x.id) === ed.dataset.editarEquipo)); return; }
@@ -3808,14 +3818,26 @@ function pintarCamposPendientes() {
     `<label class="check-inline"><input type="checkbox" value="${k}" ${def ? 'checked' : ''}> ${l}</label>`).join('');
 }
 
+/* Datos que le faltan a un miembro (los campos marcados en "Datos pendientes",
+   o los básicos si esa ventana todavía no se abrió) */
+function camposPendientesElegidos() {
+  const marcados = [...$$('#pendCampos input:checked')].map(i => i.value);
+  return $('#pendCampos').children.length ? marcados : CAMPOS_PENDIENTES.filter(c => c[2]).map(c => c[0]);
+}
+function faltantesMiembro(m, campos = camposPendientesElegidos()) {
+  if (!m) return [];
+  const etiqueta = Object.fromEntries(CAMPOS_PENDIENTES.map(([k, l]) => [k, l]));
+  return campos.filter(k => !String(m[k] || '').trim()).map(k => etiqueta[k]);
+}
+
 /* Filas: miembros con datos faltantes y personas de equipos sin ficha */
 function filasPendientes() {
-  const campos = [...$$('#pendCampos input:checked')].map(i => i.value);
-  const etiqueta = Object.fromEntries(CAMPOS_PENDIENTES.map(([k, l]) => [k, l]));
+  const campos = camposPendientesElegidos();
   const filas = [];
-  const base = $('#pendActivos').checked ? MEMBERS.filter(m => m.estado !== 'Inactivo') : MEMBERS;
+  let base = $('#pendActivos').checked ? MEMBERS.filter(m => m.estado !== 'Inactivo') : MEMBERS;
+  if ($('#pendSoloEquipos').checked) base = base.filter(m => rolEnEquipo(m.id));
   for (const m of base) {
-    const faltan = campos.filter(k => !String(m[k] || '').trim()).map(k => etiqueta[k]);
+    const faltan = faltantesMiembro(m, campos);
     if (!faltan.length) continue;
     const r = rolEnEquipo(m.id);
     filas.push({
@@ -3860,10 +3882,14 @@ function refrescarPendientes() {
 
 $('#btnExportPendientes').addEventListener('click', () => {
   if (!$('#pendCampos').children.length) pintarCamposPendientes();
+  $('#pendSoloEquipos').checked = false;
   refrescarPendientes();
   $('#pendModal').classList.remove('hidden');
 });
-['#pendCampos', '#pendEquipos', '#pendActivos'].forEach(s => $(s).addEventListener('change', refrescarPendientes));
+['#pendCampos', '#pendEquipos', '#pendActivos', '#pendSoloEquipos'].forEach(s => $(s).addEventListener('change', () => {
+  refrescarPendientes();
+  if (ACTIVE_TAB === 'equipos') renderEquipos();
+}));
 
 $('#btnPendCSV').addEventListener('click', () => {
   const filas = filasPendientes();
@@ -4382,7 +4408,7 @@ async function cargarApp() {
   renderDashboard();
   updateModeloPicker();
   // Desplegables con el estilo del sistema
-  ['#filterEstado', '#sortOrden', '#fFoto', '#fFalta', '#fMesCumple', '#fFuncion', '#fAnioRegistro', '#fAnioConversion', '#histTabla', '#histAccion']
+  ['#filterEstado', '#sortOrden', '#fFoto', '#fFalta', '#fMesCumple', '#fFuncion', '#fAnioRegistro', '#fAnioConversion', '#histTabla', '#histAccion', '#equiposFiltro']
     .forEach(s => customizarSelect($(s)));
   customizarSelect($('#editForm').elements.estado);
   $('#checkQR').checked = settings.carnetQR !== false;

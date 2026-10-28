@@ -12,6 +12,9 @@ equipos) vive dentro de la app, en la sección **Historial**.
   cambiarle el tamaño o moverlo con las flechas del teclado. Se guarda por modelo
   y se respeta al imprimir y en el PNG.
 - La foto del carnet Bandera ahora es vertical (19 × 24 mm).
+- **Equipos: datos pendientes.** Filtro "Con datos pendientes", cada persona
+  muestra lo que le falta y el botón "Lista de pendientes" exporta solo a la
+  gente de los equipos.
 - **Datos pendientes** (Miembros, menú Importar / exportar): tabla de quién debe
   entregar foto, cédula, teléfono u otros datos, y de las personas de los equipos
   de cosecha que aún no tienen ficha. Se exporta a Excel o PDF, o se copia
