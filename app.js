@@ -4015,7 +4015,8 @@ const PEND_PDF_CSS = `
   .etq-ok { font-weight: 700; color: #0a6626; }
   .cifra.ok b { color: #0a6626; }
   tr.al-dia td { background: #f3fbf5; }
-  .pie { margin-top: 10px; color: #5b6b85; font-size: 10px; }`;
+  .pie { margin-top: 10px; color: #5b6b85; font-size: 10px; }
+  .aviso { background: #fff6c2; border-left: 4px solid #feeb01; padding: 7px 10px; margin: 0 0 10px; font-size: 12.5px; }`;
 
 $('#btnPendPDF').addEventListener('click', () => {
   const filas = filasPendientes();
@@ -4029,6 +4030,7 @@ $('#btnPendPDF').addEventListener('click', () => {
     <div class="cab"><img src="${logo}" alt="">
       <div><h1>Datos pendientes de la membresía ${esc(settings.anio)}</h1>
       <p>Confraternidad Cristiana Nueva Jerusalén · ${new Date().toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div></div>
+    <p class="aviso">Busca tu nombre en tu equipo. En la columna <b>«Le falta»</b> está lo que debes entregarle a tu líder lo antes posible.</p>
     <div class="cifras">
       <div class="cifra"><b>${r.total}</b><span>personas en la lista</span></div>
       ${r.alDia ? `<div class="cifra ok"><b>${r.alDia}</b><span>al día</span></div>` : ''}
