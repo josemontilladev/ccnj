@@ -3209,10 +3209,14 @@ const nombreEquipo = (eq) => {
   const l = liderDe(eq);
   return l ? `Equipo de ${nombreIntegrante(l)}` : `Equipo ${eq.orden || ''}`.trim();
 };
+/* En los equipos se muestra el nombre tal como está en el documento de la
+   cosecha; si no lo tiene, el de la ficha */
 function nombreIntegrante(p) {
+  if ((p.nombre || '').trim()) return p.nombre;
   const m = p.miembroId != null && MEMBERS.find(x => x.id === p.miembroId);
-  return m ? m.nombres : p.nombre;
+  return m ? m.nombres : '';
 }
+const nombreFicha = (p) => (p.miembroId != null && MEMBERS.find(x => x.id === p.miembroId)?.nombres) || '';
 
 /* Función que se muestra (tabla, ficha, carnet). Ya no existen los "oikos":
    el rol del equipo de cosecha manda, y del texto libre de la planilla se
@@ -3250,7 +3254,7 @@ function renderEquipos() {
       (sinFicha ? `. ${sinFicha} personas aún sin ficha de miembro.` : '.')
     : 'Líderes y colaboradores de cada equipo';
 
-  const coincide = (p) => (!q || norm(nombreIntegrante(p)).includes(q) || norm(p.nombre).includes(q)) &&
+  const coincide = (p) => (!q || norm(nombreIntegrante(p)).includes(q) || norm(nombreFicha(p)).includes(q)) &&
     (filtro !== 'sinficha' || p.miembroId == null) &&
     (filtro !== 'pendientes' || p.miembroId == null || faltantesMiembro(MEMBERS.find(x => x.id === p.miembroId)).length > 0);
   const visibles = EQUIPOS
@@ -3273,7 +3277,7 @@ function renderEquipos() {
       <div class="eq-persona ${p.rol === 'Líder' ? 'es-lider' : ''} ${m ? 'con-ficha' : ''} ${atenuar ? 'atenuada' : ''}" ${m ? `data-id="${m.id}"` : ''}>
         <div class="avatar">${m && m.foto ? `<img src="${m.foto}" alt="">` : esc(initials(nombreIntegrante(p)))}</div>
         <div class="eq-persona-txt">
-          <span class="eq-nombre">${esc(nombreIntegrante(p))}</span>
+          <span class="eq-nombre" ${m && m.nombres !== nombreIntegrante(p) ? `title="Ficha: ${esc(m.nombres)}"` : ''}>${esc(nombreIntegrante(p))}</span>
           ${m ? (faltan.length ? `<span class="eq-sin-ficha">Falta: ${esc(faltan.join(', ').toLowerCase())}</span>` : '')
               : '<span class="eq-sin-ficha">Sin ficha</span>'}
         </div>
