@@ -1439,6 +1439,12 @@ svg.lucide {
 .carnet.m-bandera3 .c-band::before { background: linear-gradient(90deg, #005FB2 33.3%, #079832 33.3% 66.6%, #feeb01 66.6%); }
 .carnet.m-bandera3 .c-sede { color: #dbe5f5; margin: 0; }
 
+/* ---- Forma de la foto (Ajustes del carnet: aplica a todos los modelos) ---- */
+.carnet.foto-rect .c-photo { aspect-ratio: 3 / 4; height: auto !important; }
+.carnet.foto-cuad .c-photo { aspect-ratio: 1; height: auto !important; border-radius: 1.6mm; }
+.carnet.foto-redonda .c-photo { aspect-ratio: 1; height: auto !important; border-radius: 50% !important; }
+.carnet-preview .c-photo { cursor: zoom-in; }
+
 /* ---- QR de verificación ---- */
 .carnet .c-qr {
   width: 7.5mm; height: 7.5mm;
@@ -1892,6 +1898,56 @@ svg.lucide {
   .hist-item { grid-template-columns: 52px 10px minmax(0, 1fr); }
   .hist-item > .btn { grid-column: 3; justify-self: start; margin-top: 6px; }
 }
+
+/* ================= FORMA Y EDITOR DE FOTO ================= */
+.forma-foto { margin-top: 18px; border-top: 1px solid var(--linea); padding-top: 14px; }
+.forma-titulo { font-weight: 700; margin-bottom: 8px; }
+.forma-opciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.forma-opciones button {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--linea); background: var(--blanco); color: var(--tinta);
+  border-radius: var(--radio-sm); padding: 8px 12px; font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer;
+}
+.forma-opciones button:hover { border-color: #b7c5d8; }
+.forma-opciones button.active { border-color: var(--azul); background: var(--azul-suave); color: var(--azul); }
+.forma-ico { width: 16px; height: 18px; border: 2px solid currentColor; display: inline-block; }
+.forma-ico.f-modelo { border-style: dashed; border-radius: 3px; }
+.forma-ico.f-rect { width: 14px; height: 18px; border-radius: 2px; }
+.forma-ico.f-cuad { width: 16px; height: 16px; border-radius: 3px; }
+.forma-ico.f-redonda { width: 16px; height: 16px; border-radius: 50%; }
+
+.fe-escenario {
+  display: flex; justify-content: center;
+  background: repeating-conic-gradient(#eef2f7 0% 25%, #f8fafc 0% 50%) 50% / 18px 18px;
+  border-radius: var(--radio); padding: 14px; margin: 6px 0 12px;
+}
+.fe-escenario canvas {
+  max-width: 100%; max-height: 52vh; width: auto; height: auto;
+  border-radius: 6px; box-shadow: 0 4px 18px rgba(19, 35, 63, .18);
+  cursor: grab; touch-action: none;
+}
+.fe-escenario canvas:active { cursor: grabbing; }
+.fe-escenario.redonda canvas { border-radius: 50%; }
+.fe-controles { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fe-zoom { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px; color: var(--gris); }
+.fe-zoom input { flex: 1; accent-color: var(--azul); }
+.fe-formato { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.fe-formato > span { font-weight: 700; font-size: 14.5px; }
+.fe-otra { margin-top: 12px; }
+
+/* ================= DATOS PENDIENTES ================= */
+.pend-campos { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 10px; }
+.pend-campos .check-inline, .pend-opciones .check-inline { color: var(--tinta); }
+.pend-opciones { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--linea); }
+.pend-resumen { font-weight: 700; margin: 6px 0 8px; }
+.pend-tabla-wrap { max-height: 46vh; overflow: auto; border: 1px solid var(--linea); border-radius: var(--radio-sm); }
+.pend-tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+.pend-tabla th { position: sticky; top: 0; background: #f7f9fc; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--linea); white-space: nowrap; }
+.pend-tabla td { padding: 7px 10px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+.pend-tabla td.num { color: var(--gris); width: 36px; text-align: center; font-variant-numeric: tabular-nums; }
+.pend-tabla tr.sin-ficha td { background: #fffbe0; }
+.pend-tabla .rol { color: var(--gris); }
+.pend-foot { gap: 10px; flex-wrap: wrap; }
 
 /* ================= AVISO DE SINCRONIZACIÓN ================= */
 .backup-banner.banner-error {

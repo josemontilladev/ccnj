@@ -18,3 +18,6 @@ backup/
 migracion/node_modules/
 carnets_canva*
 cosechas*.docx
+
+# Fotos de planillas y de miembros (datos personales)
+Carnet/

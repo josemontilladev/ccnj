@@ -292,6 +292,7 @@
               <p class="menu-grupo">Exportar</p>
               <button class="menu-item" role="menuitem" id="btnExportCSV"><i data-lucide="file-spreadsheet"></i><span><b>Excel (CSV)</b><small>Todos los datos, para abrir en Excel</small></span></button>
               <button class="menu-item" role="menuitem" id="btnExportLista"><i data-lucide="clipboard-list"></i><span><b>Lista de miembros</b><small>Nombre, cédula y teléfono: texto, Word o PDF</small></span></button>
+              <button class="menu-item" role="menuitem" id="btnExportPendientes"><i data-lucide="clipboard-check"></i><span><b>Datos pendientes</b><small>Quién debe entregar foto, cédula u otros datos</small></span></button>
               <button class="menu-item" role="menuitem" id="btnExportFotos"><i data-lucide="image-down"></i><span><b>Fotos</b><small>Descarga las fotos en un archivo ZIP</small></span></button>
               <p class="menu-grupo">Respaldo</p>
               <button class="menu-item" role="menuitem" id="btnExportJSON"><i data-lucide="database-backup"></i><span><b>Descargar respaldo</b><small>Copia completa en un archivo .json</small></span></button>
@@ -550,6 +551,67 @@
   </div>
 </div>
 
+<!-- ===== MODAL AJUSTAR FOTO ===== -->
+<div class="modal-backdrop hidden" id="fotoEditorModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="fotoEditorTitulo">Ajustar foto</h2>
+      <button class="modal-close" data-close="fotoEditorModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="lista-hint">Arrastra la foto para encuadrarla y usa el control para acercarla o alejarla.</p>
+      <div class="fe-escenario" id="feEscenario">
+        <canvas id="feCanvas" width="600" height="800"></canvas>
+      </div>
+      <div class="fe-controles">
+        <label class="fe-zoom"><i data-lucide="zoom-out"></i>
+          <input type="range" id="feZoom" min="1" max="4" step="0.01" value="1" aria-label="Acercar">
+          <i data-lucide="zoom-in"></i></label>
+        <button type="button" class="btn btn-ghost btn-sm" id="feGirar"><i data-lucide="rotate-cw"></i> Girar</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="feCentrar"><i data-lucide="scan"></i> Centrar</button>
+      </div>
+      <div class="fe-formato">
+        <span>Recorte</span>
+        <div class="forma-opciones" id="feFormato" role="radiogroup" aria-label="Formato del recorte">
+          <button type="button" data-aspecto="0.75" role="radio">3:4</button>
+          <button type="button" data-aspecto="0.8571" role="radio">Carnet</button>
+          <button type="button" data-aspecto="1" role="radio">Cuadrado</button>
+        </div>
+      </div>
+      <label class="btn btn-ghost btn-sm fe-otra" for="feArchivo"><i data-lucide="image-up"></i> Usar otra foto</label>
+      <input type="file" id="feArchivo" accept="image/*" hidden>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" id="feGuardar"><i data-lucide="check"></i> Guardar foto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL DATOS PENDIENTES ===== -->
+<div class="modal-backdrop hidden" id="pendModal">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h2>Datos pendientes</h2>
+      <button class="modal-close" data-close="pendModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="lista-hint">Elige qué datos revisar. La lista sirve para pedirle a cada persona lo que le falta.</p>
+      <div class="pend-campos" id="pendCampos"></div>
+      <div class="pend-opciones">
+        <label class="check-inline"><input type="checkbox" id="pendEquipos" checked> Incluir personas de los equipos de cosecha que aún no tienen ficha</label>
+        <label class="check-inline"><input type="checkbox" id="pendActivos" checked> Solo miembros activos</label>
+      </div>
+      <p class="pend-resumen" id="pendResumen"></p>
+      <div class="pend-tabla-wrap"><table class="pend-tabla" id="pendTabla"></table></div>
+    </div>
+    <div class="modal-foot pend-foot">
+      <button class="btn btn-ghost" id="btnPendCopiar"><i data-lucide="copy"></i> Copiar texto</button>
+      <button class="btn btn-ghost" id="btnPendCSV"><i data-lucide="file-spreadsheet"></i> Excel (CSV)</button>
+      <button class="btn btn-primary" id="btnPendPDF"><i data-lucide="printer"></i> Imprimir / PDF</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== MODAL EDITAR CARNET ===== -->
 <div class="modal-backdrop hidden" id="carnetEditorModal">
   <div class="modal">
@@ -568,6 +630,16 @@
       <label class="f-block hidden" id="textoLibreWrap">Contenido del texto libre
         <input type="text" id="carnetTextoInput" placeholder="Ej: Válido hasta diciembre 2026">
       </label>
+      <div class="forma-foto">
+        <p class="forma-titulo">Forma de la foto</p>
+        <div class="forma-opciones" id="formaFoto" role="radiogroup" aria-label="Forma de la foto">
+          <button type="button" data-forma="modelo" role="radio"><span class="forma-ico f-modelo"></span>Como el modelo</button>
+          <button type="button" data-forma="rect" role="radio"><span class="forma-ico f-rect"></span>Rectangular</button>
+          <button type="button" data-forma="cuad" role="radio"><span class="forma-ico f-cuad"></span>Cuadrada</button>
+          <button type="button" data-forma="redonda" role="radio"><span class="forma-ico f-redonda"></span>Redonda</button>
+        </div>
+        <p class="lista-hint">Para encuadrar la foto de una persona, haz clic sobre su foto en la vista previa del carnet.</p>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" id="btnLayoutReset"><i data-lucide="rotate-ccw"></i> Restaurar diseño original</button>
@@ -630,6 +702,7 @@
     <div class="modal-body" id="viewBody"></div>
     <div class="modal-foot view-foot">
       <button class="btn btn-ghost" id="btnViewEdit"><i data-lucide="pencil"></i> Editar</button>
+      <button class="btn btn-ghost" id="btnViewFoto"><i data-lucide="crop"></i> Ajustar foto</button>
       <button class="btn btn-green" id="btnViewWhatsApp"><i data-lucide="send"></i> WhatsApp</button>
       <button class="btn btn-primary" id="btnViewCarnet"><i data-lucide="id-card"></i> Descargar carnet</button>
     </div>
@@ -647,6 +720,7 @@
       <div class="edit-photo-row">
         <div class="photo-preview" id="editPhotoPreview"><span>Sin foto</span></div>
         <label class="btn btn-ghost" for="editPhotoInput"><i data-lucide="image-up"></i> Cambiar foto</label>
+        <button type="button" class="btn btn-ghost" id="btnEditAjustarFoto"><i data-lucide="crop"></i> Ajustar foto</button>
         <input type="file" id="editPhotoInput" accept="image/*" hidden>
       </div>
       <form id="editForm" class="member-form" autocomplete="off">

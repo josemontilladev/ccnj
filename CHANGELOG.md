@@ -4,6 +4,24 @@ Cambios del Sistema de Membresía de la Confraternidad Cristiana Nueva Jerusalé
 del más reciente al más antiguo. El registro de quién cambió qué dato (miembros y
 equipos) vive dentro de la app, en la sección **Historial**.
 
+## 2026-10-28
+
+### Agregado
+- **Datos pendientes** (Miembros, menú Importar / exportar): tabla de quién debe
+  entregar foto, cédula, teléfono u otros datos, y de las personas de los equipos
+  de cosecha que aún no tienen ficha. Se exporta a Excel o PDF, o se copia
+  agrupada por equipo para enviarla por WhatsApp.
+- **Ajustar foto**: encuadrar, acercar, girar y recortar la foto de cada miembro
+  (desde la ficha, al editar o haciendo clic en la foto del carnet).
+- **Forma de la foto del carnet** para todos los modelos: como el modelo,
+  rectangular, cuadrada o redonda.
+- Carga de una tanda de 67 planillas: 19 miembros nuevos y la huella de cada
+  planilla, para que no se dupliquen si se vuelven a subir.
+
+### Corregido
+- En el PNG del carnet las fotos podían salir estiradas si no tenían la misma
+  proporción que su recuadro; ahora se recortan antes de exportar.
+
 ## 2026-10-27
 
 ### Agregado

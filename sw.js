@@ -3,8 +3,8 @@
    miembros guardadas en Storage; nunca cachea los datos de la tabla
    de Supabase ni la lectura de planillas (/api/). */
 
-const CACHE = 'ccnj-v15';
-const CACHE_FOTOS = 'ccnj-fotos-v1';
+const CACHE = 'ccnj-v16';
+const CACHE_FOTOS = 'ccnj-fotos-v2';
 const APP_SHELL = [
   './',
   'index.html',
@@ -47,12 +47,15 @@ self.addEventListener('fetch', (e) => {
     // Fotos de Storage: los archivos tienen nombre aleatorio y nunca
     // cambian, así que se pueden cachear para verlas sin internet
     if (url.pathname.includes('/storage/v1/object/public/')) {
+      // Siempre con CORS: así la misma copia sirve para mostrar la foto y para
+      // recortarla en un lienzo (una copia "opaca" no se puede recortar)
+      const req = new Request(url.href, { mode: 'cors', credentials: 'omit' });
       e.respondWith(
         caches.open(CACHE_FOTOS).then(async (c) => {
-          const hit = await c.match(e.request);
+          const hit = await c.match(req);
           if (hit) return hit;
-          const resp = await fetch(e.request);
-          if (resp && resp.ok) c.put(e.request, resp.clone());
+          const resp = await fetch(req);
+          if (resp && resp.ok) c.put(req, resp.clone());
           return resp;
         })
       );

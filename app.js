@@ -2606,7 +2606,7 @@ function carnetParts(m) {
     name: esc(m.nombres || ''),
     nameClass: (m.nombres || '').length > 26 ? 'c-name small' : 'c-name',
     fotoHTML: m.foto
-      ? `<img class="c-photo" src="${m.foto}" alt="">`
+      ? `<img class="c-photo" src="${m.foto}" alt=""${/^data:/.test(m.foto) ? '' : ' crossorigin="anonymous"'}>`
       : `<div class="c-photo placeholder">${esc(initials(m.nombres))}</div>`,
     ciHTML: m.ci ? `<div class="c-ci">C.I. ${esc(fmtCI(m.ci))}</div>` : '',
     funcion: esc(funcionMostrada(m) || 'Miembro Activo'),
@@ -2860,7 +2860,8 @@ const CARNET_MODELOS = {
 
 function carnetHTML(m) {
   const modelo = CARNET_MODELOS[settings.modeloCarnet] || CARNET_MODELOS.clasico;
-  return modelo.fn(m);
+  const forma = settings.fotoForma && settings.fotoForma !== 'modelo' ? ` foto-${settings.fotoForma}` : '';
+  return modelo.fn(m).replace('class="carnet', `class="carnet${forma}`);
 }
 
 function renderCarnetList() {
@@ -2970,6 +2971,7 @@ function setCarnetLayout(l) {
 }
 
 $('#btnEditarCarnet').addEventListener('click', () => {
+  pintarFormaFoto();
   renderElemEditor();
   $('#carnetEditorModal').classList.remove('hidden');
 });
@@ -3068,6 +3070,7 @@ async function carnetToCanvas(m) {
     const imgs = [...node.querySelectorAll('img')];
     await Promise.all(imgs.map(img => img.complete ? Promise.resolve() :
       new Promise(r => { img.onload = r; img.onerror = r; })));
+    await recortarFotosParaExportar(node);
     // useCORS: las fotos ahora viven en Storage (otro dominio)
     return await html2canvas(node, { scale: 5, backgroundColor: null, logging: false, useCORS: true });
   } finally {
@@ -3582,6 +3585,325 @@ async function cargarHistorialMiembro(id) {
         · ${esc(quienHizo(h.usuario))}</span>
     </div>`).join('');
 }
+
+/* ============================================================
+   FOTOS DEL CARNET: forma (para todos los modelos) y encuadre de
+   cada foto. El encuadre genera una foto nueva ya recortada, así el
+   carnet sale igual en pantalla, en PDF y en PNG.
+   ============================================================ */
+const FORMAS_FOTO = ['modelo', 'rect', 'cuad', 'redonda'];
+
+function pintarFormaFoto() {
+  const actual = FORMAS_FOTO.includes(settings.fotoForma) ? settings.fotoForma : 'modelo';
+  $$('#formaFoto [data-forma]').forEach(b => {
+    b.classList.toggle('active', b.dataset.forma === actual);
+    b.setAttribute('aria-checked', String(b.dataset.forma === actual));
+  });
+}
+$('#formaFoto').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-forma]');
+  if (!b) return;
+  settings.fotoForma = b.dataset.forma;
+  saveSettings(settings);
+  pintarFormaFoto();
+  renderCarnetPreview();
+});
+
+/* Aspecto (ancho/alto) que conviene para recortar según la forma elegida */
+const aspectoFormaFoto = () => ({ rect: 0.75, cuad: 1, redonda: 1 }[settings.fotoForma] || 0.8571);
+
+/* Clic en la foto de la vista previa: abre el editor para ese miembro */
+$('#carnetPreview').addEventListener('click', (e) => {
+  if (!e.target.closest('.c-photo')) return;
+  const sel = selectedMembers();
+  const m = sel[sel.length - 1];
+  if (m) abrirEditorFoto({ miembro: m });
+});
+
+/* ---- Editor de foto (lienzo con arrastre, zoom y giro) ---- */
+const fe = { img: null, giro: 0, zoom: 1, dx: 0, dy: 0, aspecto: 0.8571, alGuardar: null, arrastre: null };
+
+function cargarImagen(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    // Las fotos de Storage vienen de otro dominio: sin esto el lienzo no se puede exportar
+    if (!/^data:/.test(src)) img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('no se pudo abrir la foto'));
+    img.src = src;
+  });
+}
+
+function dibujarEditorFoto() {
+  const cv = $('#feCanvas');
+  const W = 600, H = Math.round(600 / fe.aspecto);
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#eef2f7';
+  ctx.fillRect(0, 0, W, H);
+  if (!fe.img) return;
+  const girada = fe.giro % 180 !== 0;
+  const iw = girada ? fe.img.height : fe.img.width;
+  const ih = girada ? fe.img.width : fe.img.height;
+  // "cover": la foto siempre llena el recuadro; el zoom la amplía desde ahí
+  const escala = Math.max(W / iw, H / ih) * fe.zoom;
+  // El desplazamiento no puede dejar huecos en los bordes
+  const maxX = Math.max(0, (iw * escala - W) / 2), maxY = Math.max(0, (ih * escala - H) / 2);
+  fe.dx = Math.min(maxX, Math.max(-maxX, fe.dx));
+  fe.dy = Math.min(maxY, Math.max(-maxY, fe.dy));
+  ctx.save();
+  ctx.translate(W / 2 + fe.dx, H / 2 + fe.dy);
+  ctx.rotate(fe.giro * Math.PI / 180);
+  ctx.drawImage(fe.img, -fe.img.width * escala / 2, -fe.img.height * escala / 2, fe.img.width * escala, fe.img.height * escala);
+  ctx.restore();
+  $('#feEscenario').classList.toggle('redonda', settings.fotoForma === 'redonda' && fe.aspecto === 1);
+}
+
+function pintarFormatoEditor() {
+  $$('#feFormato [data-aspecto]').forEach(b => {
+    const on = Math.abs(Number(b.dataset.aspecto) - fe.aspecto) < 0.01;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+}
+
+/* opciones: { miembro } guarda directo en su ficha; { src, alGuardar } devuelve la foto (editor de miembro) */
+async function abrirEditorFoto({ miembro, src, alGuardar }) {
+  const fuente = src || miembro?.foto;
+  if (!fuente) { toast('Este miembro no tiene foto: súbela primero', 'err'); return; }
+  try { fe.img = await cargarImagen(fuente); }
+  catch (err) { toast('No se pudo abrir la foto para editarla', 'err'); return; }
+  Object.assign(fe, { giro: 0, zoom: 1, dx: 0, dy: 0, aspecto: aspectoFormaFoto() });
+  fe.alGuardar = alGuardar || (async (dataUrl) => {
+    const m = MEMBERS.find(x => x.id === miembro.id);
+    if (!m) return;
+    m._fotoAnterior = m.foto;
+    m.foto = dataUrl;
+    await dbPut(m);
+    await refreshMembers();
+    renderCarnetPreview();
+    renderMembersTable();
+    if (!$('#viewModal').classList.contains('hidden') && viewingId === m.id) {
+      openViewModal(MEMBERS.find(x => x.id === m.id) || m);
+    }
+    toast('Foto guardada');
+  });
+  $('#fotoEditorTitulo').textContent = miembro ? `Ajustar foto de ${miembro.nombres.split(' ').slice(0, 2).join(' ')}` : 'Ajustar foto';
+  $('#feZoom').value = 1;
+  pintarFormatoEditor();
+  dibujarEditorFoto();
+  $('#fotoEditorModal').classList.remove('hidden');
+  refreshIcons();
+}
+
+$('#feZoom').addEventListener('input', (e) => { fe.zoom = Number(e.target.value); dibujarEditorFoto(); });
+$('#feGirar').addEventListener('click', () => { fe.giro = (fe.giro + 90) % 360; fe.dx = fe.dy = 0; dibujarEditorFoto(); });
+$('#feCentrar').addEventListener('click', () => { fe.dx = fe.dy = 0; fe.zoom = 1; $('#feZoom').value = 1; dibujarEditorFoto(); });
+$('#feFormato').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-aspecto]');
+  if (!b) return;
+  fe.aspecto = Number(b.dataset.aspecto);
+  pintarFormatoEditor();
+  dibujarEditorFoto();
+});
+$('#feArchivo').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    fe.img = await cargarImagen(await resizeImage(f, 1600, 0.92));
+    Object.assign(fe, { giro: 0, zoom: 1, dx: 0, dy: 0 });
+    $('#feZoom').value = 1;
+    dibujarEditorFoto();
+  } catch (err) { toast(err.message, 'err'); }
+});
+
+/* Arrastre con ratón o dedo (en coordenadas del lienzo) */
+const feCv = $('#feCanvas');
+feCv.addEventListener('pointerdown', (e) => {
+  feCv.setPointerCapture(e.pointerId);
+  fe.arrastre = { x: e.clientX, y: e.clientY, dx: fe.dx, dy: fe.dy, k: feCv.width / feCv.getBoundingClientRect().width };
+});
+feCv.addEventListener('pointermove', (e) => {
+  if (!fe.arrastre) return;
+  const a = fe.arrastre;
+  fe.dx = a.dx + (e.clientX - a.x) * a.k;
+  fe.dy = a.dy + (e.clientY - a.y) * a.k;
+  dibujarEditorFoto();
+});
+['pointerup', 'pointercancel'].forEach(t => feCv.addEventListener(t, () => { fe.arrastre = null; }));
+feCv.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  fe.zoom = Math.min(4, Math.max(1, fe.zoom * (e.deltaY < 0 ? 1.08 : 0.93)));
+  $('#feZoom').value = fe.zoom;
+  dibujarEditorFoto();
+}, { passive: false });
+
+$('#feGuardar').addEventListener('click', async () => {
+  let dataUrl;
+  try { dataUrl = $('#feCanvas').toDataURL('image/jpeg', 0.9); }
+  catch { toast('No se pudo guardar: la foto no permite editarse desde este navegador', 'err'); return; }
+  $('#feGuardar').disabled = true;
+  try {
+    await fe.alGuardar(dataUrl);
+    $('#fotoEditorModal').classList.add('hidden');
+  } catch (err) {
+    toast('No se pudo guardar la foto: ' + err.message, 'err');
+  } finally {
+    $('#feGuardar').disabled = false;
+  }
+});
+
+$('#btnViewFoto').addEventListener('click', () => {
+  const m = MEMBERS.find(x => x.id === viewingId);
+  if (m) abrirEditorFoto({ miembro: m });
+});
+$('#btnEditAjustarFoto').addEventListener('click', () => {
+  if (!editPhoto) { toast('Sube una foto primero', 'err'); return; }
+  abrirEditorFoto({
+    src: editPhoto,
+    alGuardar: async (dataUrl) => {
+      editPhoto = dataUrl;
+      $('#editPhotoPreview').innerHTML = `<img src="${editPhoto}" alt="">`;
+      $('#editPhotoPreview').classList.add('has-photo');
+    }
+  });
+});
+
+/* Para el PNG: html2canvas no respeta "object-fit", así que cada foto se
+   recorta antes al tamaño exacto de su recuadro (como la ve la pantalla) */
+async function recortarFotosParaExportar(nodo) {
+  for (const img of nodo.querySelectorAll('img.c-photo')) {
+    const r = img.getBoundingClientRect();
+    if (!r.width || !r.height || !img.naturalWidth) continue;
+    try {
+      const fuente = /^data:/.test(img.src) ? img : await cargarImagen(img.src);
+      const k = 4;
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(r.width * k); cv.height = Math.round(r.height * k);
+      const esc = Math.max(cv.width / fuente.naturalWidth, cv.height / fuente.naturalHeight);
+      const w = fuente.naturalWidth * esc, h = fuente.naturalHeight * esc;
+      cv.getContext('2d').drawImage(fuente, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+      const url = cv.toDataURL('image/jpeg', 0.92);
+      await new Promise(res => { img.onload = res; img.onerror = res; img.src = url; });
+    } catch { /* si la foto no permite recortarse, se deja como está */ }
+  }
+}
+
+/* ============================================================
+   DATOS PENDIENTES: quién debe entregar qué
+   ============================================================ */
+const CAMPOS_PENDIENTES = [
+  ['foto', 'Foto', true], ['ci', 'Cédula', true], ['telefono', 'Teléfono', true],
+  ['fechaNacimiento', 'Fecha de nacimiento', true], ['direccion', 'Dirección', true],
+  ['lugarNacimiento', 'Lugar de nacimiento', false], ['estadoCivil', 'Estado civil', false],
+  ['correo', 'Correo', false], ['recibioCristo', 'Cuándo recibió a Cristo', false],
+  ['bautizo', 'Bautizo', false], ['tiempoConfraternidad', 'Tiempo en la iglesia', false]
+];
+
+function pintarCamposPendientes() {
+  $('#pendCampos').innerHTML = CAMPOS_PENDIENTES.map(([k, l, def]) =>
+    `<label class="check-inline"><input type="checkbox" value="${k}" ${def ? 'checked' : ''}> ${l}</label>`).join('');
+}
+
+/* Filas: miembros con datos faltantes y personas de equipos sin ficha */
+function filasPendientes() {
+  const campos = [...$$('#pendCampos input:checked')].map(i => i.value);
+  const etiqueta = Object.fromEntries(CAMPOS_PENDIENTES.map(([k, l]) => [k, l]));
+  const filas = [];
+  const base = $('#pendActivos').checked ? MEMBERS.filter(m => m.estado !== 'Inactivo') : MEMBERS;
+  for (const m of base) {
+    const faltan = campos.filter(k => !String(m[k] || '').trim()).map(k => etiqueta[k]);
+    if (!faltan.length) continue;
+    const r = rolEnEquipo(m.id);
+    filas.push({
+      nombre: m.nombres || 'Sin nombre', equipo: r ? nombreEquipo(r.equipo) : '', rol: r ? r.rol : '',
+      telefono: fmtTel(m.telefono) || '', falta: faltan.join(', '), sinFicha: false
+    });
+  }
+  if ($('#pendEquipos').checked) {
+    for (const eq of EQUIPOS) {
+      for (const p of eq.integrantes || []) {
+        if (p.miembroId != null) continue;
+        filas.push({ nombre: p.nombre, equipo: nombreEquipo(eq), rol: p.rol, telefono: '', falta: 'Planilla completa (no está registrado)', sinFicha: true });
+      }
+    }
+  }
+  // Primero por equipo (así cada líder ve a los suyos), luego por nombre
+  return filas.sort((a, b) => (a.equipo || '~').localeCompare(b.equipo || '~', 'es') ||
+    (a.rol === 'Líder' ? -1 : b.rol === 'Líder' ? 1 : 0) || a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+function tablaPendientesHTML(filas) {
+  return `<thead><tr><th>N°</th><th>Nombre</th><th>Equipo de cosecha</th><th>Teléfono</th><th>Le falta</th></tr></thead>
+    <tbody>${filas.map((f, i) => `
+      <tr class="${f.sinFicha ? 'sin-ficha' : ''}">
+        <td class="num">${i + 1}</td>
+        <td>${esc(f.nombre)}</td>
+        <td>${f.equipo ? `${esc(f.equipo.replace(/^Equipo de /, ''))}${f.rol ? ` <span class="rol">(${esc(f.rol)})</span>` : ''}` : '—'}</td>
+        <td>${esc(f.telefono || '—')}</td>
+        <td>${esc(f.falta)}</td>
+      </tr>`).join('')}</tbody>`;
+}
+
+function refrescarPendientes() {
+  const filas = filasPendientes();
+  const sinFicha = filas.filter(f => f.sinFicha).length;
+  $('#pendResumen').textContent = filas.length
+    ? `${filas.length} persona(s): ${filas.length - sinFicha} con datos incompletos` + (sinFicha ? ` y ${sinFicha} de los equipos sin ficha.` : '.')
+    : 'Nadie tiene datos pendientes con estos filtros.';
+  $('#pendTabla').innerHTML = filas.length ? tablaPendientesHTML(filas) : '';
+  return filas;
+}
+
+$('#btnExportPendientes').addEventListener('click', () => {
+  if (!$('#pendCampos').children.length) pintarCamposPendientes();
+  refrescarPendientes();
+  $('#pendModal').classList.remove('hidden');
+});
+['#pendCampos', '#pendEquipos', '#pendActivos'].forEach(s => $(s).addEventListener('change', refrescarPendientes));
+
+$('#btnPendCSV').addEventListener('click', () => {
+  const filas = filasPendientes();
+  if (!filas.length) { toast('No hay datos pendientes que exportar', 'err'); return; }
+  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lineas = [['N°', 'Nombre', 'Equipo de cosecha', 'Rol', 'Teléfono', 'Le falta'].map(q).join(';'),
+    ...filas.map((f, i) => [i + 1, f.nombre, f.equipo.replace(/^Equipo de /, ''), f.rol, f.telefono, f.falta].map(q).join(';'))];
+  downloadFile(`datos_pendientes_${new Date().toISOString().slice(0, 10)}.csv`, '﻿' + lineas.join('\r\n'), 'text/csv;charset=utf-8');
+  toast('Lista de pendientes descargada');
+});
+
+$('#btnPendPDF').addEventListener('click', () => {
+  const filas = filasPendientes();
+  if (!filas.length) { toast('No hay datos pendientes que exportar', 'err'); return; }
+  const win = window.open('', '_blank');
+  if (!win) { toast('El navegador bloqueó la ventana de impresión', 'err'); return; }
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Datos pendientes</title>
+    <style>${LISTA_DOC_CSS} @page { margin: 12mm; } thead { display: table-header-group; } tr { page-break-inside: avoid; }
+      tr.sin-ficha td { background: #fff8d6 !important; } .rol { color: #555; }</style></head><body>
+    <h1>Confraternidad Cristiana Nueva Jerusalén</h1>
+    <h2>Datos pendientes de la membresía ${esc(settings.anio)}</h2>
+    <p class="total">${esc($('#pendResumen').textContent)} Fecha: ${new Date().toLocaleDateString('es-VE')}</p>
+    <table>${tablaPendientesHTML(filas)}</table>
+    <script>window.onload = () => setTimeout(() => window.print(), 150);<\/script></body></html>`);
+  win.document.close();
+});
+
+$('#btnPendCopiar').addEventListener('click', async () => {
+  const filas = filasPendientes();
+  if (!filas.length) { toast('No hay datos pendientes que copiar', 'err'); return; }
+  // Agrupado por equipo: listo para mandar por WhatsApp a cada líder
+  const grupos = new Map();
+  filas.forEach(f => {
+    const g = f.equipo || 'Sin equipo de cosecha';
+    if (!grupos.has(g)) grupos.set(g, []);
+    grupos.get(g).push(f);
+  });
+  const texto = [`DATOS PENDIENTES — Membresía ${settings.anio}`, ''].concat(
+    [...grupos].flatMap(([g, fs]) => [`*${g}*`, ...fs.map(f => `• ${f.nombre}: ${f.falta}`), ''])).join('\n');
+  try { await navigator.clipboard.writeText(texto); toast('Lista copiada: pégala en WhatsApp'); }
+  catch { toast('No se pudo copiar; usa Excel o PDF', 'err'); }
+});
 
 /* ============================================================
    AJUSTES
