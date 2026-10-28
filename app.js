@@ -4030,7 +4030,7 @@ $('#btnPendPDF').addEventListener('click', () => {
     <div class="cab"><img src="${logo}" alt="">
       <div><h1>Datos pendientes de la membresía ${esc(settings.anio)}</h1>
       <p>Confraternidad Cristiana Nueva Jerusalén · ${new Date().toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div></div>
-    <p class="aviso">Busca tu nombre en tu equipo. En la columna <b>«Le falta»</b> está lo que debes entregarle a tu líder lo antes posible.</p>
+    ${$('#pendAviso').checked ? `<p class="aviso">Busca tu nombre en tu equipo. En la columna <b>«Le falta»</b> está lo que debes entregarle a tu líder lo antes posible.</p>` : ''}
     <div class="cifras">
       <div class="cifra"><b>${r.total}</b><span>personas en la lista</span></div>
       ${r.alDia ? `<div class="cifra ok"><b>${r.alDia}</b><span>al día</span></div>` : ''}
