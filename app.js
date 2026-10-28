@@ -2861,7 +2861,7 @@ const CARNET_MODELOS = {
 function carnetHTML(m) {
   const modelo = CARNET_MODELOS[settings.modeloCarnet] || CARNET_MODELOS.clasico;
   const forma = settings.fotoForma && settings.fotoForma !== 'modelo' ? ` foto-${settings.fotoForma}` : '';
-  return modelo.fn(m).replace('class="carnet', `class="carnet${forma}`);
+  return posicionarElementos(modelo.fn(m).replace('class="carnet', `class="carnet${forma}`), settings.modeloCarnet);
 }
 
 function renderCarnetList() {
@@ -2935,6 +2935,7 @@ $('#modeloPicker').addEventListener('click', (e) => {
   const btn = e.target.closest('.modelo-btn');
   if (!btn) return;
   settings.modeloCarnet = btn.dataset.modelo;
+  diseno.sel = null;
   saveSettings(settings);
   updateModeloPicker();
   renderCarnetPreview();
@@ -3026,6 +3027,7 @@ function renderCarnetPreview() {
     return;
   }
   box.innerHTML = carnetHTML(sel[sel.length - 1]);
+  if (diseno.activo) pintarDiseno();
 }
 
 function updateCarnetButtons() {
@@ -3614,7 +3616,7 @@ const aspectoFormaFoto = () => ({ rect: 0.75, cuad: 1, redonda: 1 }[settings.fot
 
 /* Clic en la foto de la vista previa: abre el editor para ese miembro */
 $('#carnetPreview').addEventListener('click', (e) => {
-  if (!e.target.closest('.c-photo')) return;
+  if (diseno.activo || !e.target.closest('.c-photo')) return;
   const sel = selectedMembers();
   const m = sel[sel.length - 1];
   if (m) abrirEditorFoto({ miembro: m });
@@ -3903,6 +3905,169 @@ $('#btnPendCopiar').addEventListener('click', async () => {
     [...grupos].flatMap(([g, fs]) => [`*${g}*`, ...fs.map(f => `• ${f.nombre}: ${f.falta}`), ''])).join('\n');
   try { await navigator.clipboard.writeText(texto); toast('Lista copiada: pégala en WhatsApp'); }
   catch { toast('No se pudo copiar; usa Excel o PDF', 'err'); }
+});
+
+/* ============================================================
+   MOVER ELEMENTOS DEL CARNET (estilo Canva)
+   Cada elemento puede desplazarse y cambiar de tamaño. Se guarda por
+   modelo en settings.carnetPos = { modelo: { elemento: { x, y, s } } }
+   (x, y en milímetros del carnet; s = escala). Se aplica con transform,
+   que respetan la pantalla, la impresión y el PNG.
+   ============================================================ */
+const ELEMENTOS_CARNET = [
+  ['c-placa', 'logo'], ['c-logo', 'logo'], ['c-rif', 'rif'], ['c-rif2', 'rif'],
+  ['c-photo', 'foto'], ['c-name', 'nombre'], ['c-ci', 'ci'], ['c-funcion', 'funcion'],
+  ['c-anio', 'anio'], ['c-anio2', 'anio'], ['c-regla', 'regla'], ['c-qr', 'qr'],
+  ['c-sede', 'sede'], ['c-pie', 'sede'], ['c-pie2', 'sede'], ['c-dato', 'dato']
+];
+const NOMBRE_ELEMENTO = {
+  logo: 'Logo', rif: 'RIF', foto: 'Foto', nombre: 'Nombre', ci: 'Cédula', funcion: 'Función / rol',
+  anio: 'Membresía (año)', regla: 'Línea tricolor', qr: 'QR', sede: 'Dirección de la sede', dato: 'Dato'
+};
+
+/* Marca cada elemento con data-el y le aplica su posición guardada */
+function posicionarElementos(html, modelo) {
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  const card = t.content.firstElementChild;
+  if (!card) return html;
+  const vistos = {};
+  for (const [clase, clave] of ELEMENTOS_CARNET) {
+    card.querySelectorAll('.' + clase).forEach(el => {
+      if (el.closest('[data-el]')) return; // ya forma parte de otro elemento (p. ej. el logo dentro de su placa)
+      const n = vistos[clave] = (vistos[clave] || 0) + 1;
+      el.dataset.el = n > 1 ? `${clave}${n}` : clave;
+    });
+  }
+  const pos = (settings.carnetPos || {})[modelo] || {};
+  card.querySelectorAll('[data-el]').forEach(el => {
+    const p = pos[el.dataset.el];
+    if (!p) return;
+    el.style.transform = `translate(${p.x || 0}mm, ${p.y || 0}mm) scale(${p.s || 1})`;
+    el.style.position = el.style.position || 'relative';
+    el.style.zIndex = 5;
+  });
+  return card.outerHTML;
+}
+
+const diseno = { activo: false, sel: null, arrastre: null };
+
+function posElemento(clave) {
+  const modelo = settings.modeloCarnet;
+  settings.carnetPos = settings.carnetPos || {};
+  settings.carnetPos[modelo] = settings.carnetPos[modelo] || {};
+  return settings.carnetPos[modelo][clave] || (settings.carnetPos[modelo][clave] = { x: 0, y: 0, s: 1 });
+}
+
+function aplicarPosVisual(el, p) {
+  el.style.transform = `translate(${p.x}mm, ${p.y}mm) scale(${p.s})`;
+  el.style.position = el.style.position || 'relative';
+  el.style.zIndex = 5;
+}
+
+function pintarDiseno() {
+  const prev = $('#carnetPreview');
+  prev.classList.toggle('diseno', diseno.activo);
+  $('#disenoPanel').classList.toggle('hidden', !diseno.activo);
+  $('#btnDisenar').setAttribute('aria-pressed', String(diseno.activo));
+  $('#btnDisenar').classList.toggle('active', diseno.activo);
+  $('#disenoModelo').textContent = (CARNET_MODELOS[settings.modeloCarnet] || {}).nombre || '';
+  prev.querySelectorAll('[data-el]').forEach(el => {
+    el.classList.toggle('el-sel', diseno.activo && el.dataset.el === diseno.sel);
+    if (diseno.activo) { el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-label', NOMBRE_ELEMENTO[el.dataset.el.replace(/\d+$/, '')] || el.dataset.el); }
+  });
+  const hay = diseno.activo && diseno.sel && prev.querySelector(`[data-el="${diseno.sel}"]`);
+  $('#disenoControles').classList.toggle('hidden', !hay);
+  if (hay) {
+    const p = posElemento(diseno.sel);
+    $('#disenoSel').innerHTML = `Elemento seleccionado: <b>${esc(NOMBRE_ELEMENTO[diseno.sel.replace(/\d+$/, '')] || diseno.sel)}</b>`;
+    $('#disenoTam').value = p.s;
+    $('#disenoTamTxt').textContent = Math.round(p.s * 100) + '%';
+  } else if (diseno.activo) {
+    $('#disenoSel').textContent = 'Haz clic en un elemento del carnet para moverlo.';
+  }
+}
+
+function guardarDiseno() {
+  saveSettings(settings);
+}
+
+$('#btnDisenar').addEventListener('click', () => {
+  if (!selectedMembers().length) { toast('Selecciona un miembro para ver su carnet', 'err'); return; }
+  diseno.activo = !diseno.activo;
+  diseno.sel = null;
+  pintarDiseno();
+  refreshIcons();
+});
+$('#btnDisenoListo').addEventListener('click', () => { diseno.activo = false; diseno.sel = null; pintarDiseno(); });
+
+const prevBox = $('#carnetPreview');
+prevBox.addEventListener('pointerdown', (e) => {
+  if (!diseno.activo) return;
+  const el = e.target.closest('[data-el]');
+  if (!el) { diseno.sel = null; pintarDiseno(); return; }
+  e.preventDefault();
+  diseno.sel = el.dataset.el;
+  pintarDiseno();
+  const card = el.closest('.carnet');
+  const pxPorMm = card.getBoundingClientRect().width / 54; // el carnet mide 54 mm de ancho
+  const p = posElemento(diseno.sel);
+  diseno.arrastre = { el, x: e.clientX, y: e.clientY, x0: p.x, y0: p.y, k: pxPorMm, id: e.pointerId };
+  prevBox.setPointerCapture(e.pointerId);
+});
+prevBox.addEventListener('pointermove', (e) => {
+  const a = diseno.arrastre;
+  if (!a) return;
+  const p = posElemento(diseno.sel);
+  // Pasos de 0,25 mm: se mueve suave pero queda alineado
+  p.x = Math.round((a.x0 + (e.clientX - a.x) / a.k) * 4) / 4;
+  p.y = Math.round((a.y0 + (e.clientY - a.y) / a.k) * 4) / 4;
+  aplicarPosVisual(a.el, p);
+});
+['pointerup', 'pointercancel'].forEach(t => prevBox.addEventListener(t, () => {
+  if (!diseno.arrastre) return;
+  diseno.arrastre = null;
+  guardarDiseno();
+}));
+prevBox.addEventListener('keydown', (e) => {
+  if (!diseno.activo) return;
+  const el = e.target.closest('[data-el]');
+  if (!el) return;
+  if (e.key === 'Enter' || e.key === ' ') { diseno.sel = el.dataset.el; pintarDiseno(); e.preventDefault(); return; }
+  const paso = e.shiftKey ? 2 : 0.25;
+  const d = { ArrowLeft: [-paso, 0], ArrowRight: [paso, 0], ArrowUp: [0, -paso], ArrowDown: [0, paso] }[e.key];
+  if (!d) return;
+  e.preventDefault();
+  diseno.sel = el.dataset.el;
+  const p = posElemento(diseno.sel);
+  p.x += d[0]; p.y += d[1];
+  aplicarPosVisual(el, p);
+  guardarDiseno();
+  pintarDiseno();
+});
+
+$('#disenoTam').addEventListener('input', (e) => {
+  if (!diseno.sel) return;
+  const p = posElemento(diseno.sel);
+  p.s = Number(e.target.value);
+  $('#disenoTamTxt').textContent = Math.round(p.s * 100) + '%';
+  const el = prevBox.querySelector(`[data-el="${diseno.sel}"]`);
+  if (el) aplicarPosVisual(el, p);
+});
+$('#disenoTam').addEventListener('change', guardarDiseno);
+
+$('#btnDisenoReset').addEventListener('click', () => {
+  if (!diseno.sel) return;
+  delete settings.carnetPos[settings.modeloCarnet][diseno.sel];
+  guardarDiseno();
+  renderCarnetPreview();
+});
+$('#btnDisenoResetTodo').addEventListener('click', () => {
+  if (!confirm(`¿Devolver todos los elementos del modelo ${(CARNET_MODELOS[settings.modeloCarnet] || {}).nombre} a su lugar original?`)) return;
+  if (settings.carnetPos) delete settings.carnetPos[settings.modeloCarnet];
+  diseno.sel = null;
+  guardarDiseno();
+  renderCarnetPreview();
 });
 
 /* ============================================================

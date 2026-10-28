@@ -470,7 +470,25 @@
             <button class="modelo-btn" data-modelo="bandera2"><span class="modelo-dot d-bandera2"></span>Bandera v2</button>
             <button class="modelo-btn" data-modelo="bandera3"><span class="modelo-dot d-bandera3"></span>Bandera v3</button>
           </div>
-          <button class="btn btn-ghost btn-editar-carnet" id="btnEditarCarnet"><i data-lucide="settings-2"></i> Editar elementos del carnet</button>
+          <div class="editar-carnet-btns">
+            <button class="btn btn-ghost" id="btnEditarCarnet"><i data-lucide="settings-2"></i> Elementos</button>
+            <button class="btn btn-ghost" id="btnDisenar" aria-pressed="false"><i data-lucide="move"></i> Mover elementos</button>
+          </div>
+          <div class="diseno-panel hidden" id="disenoPanel">
+            <p class="diseno-sel" id="disenoSel">Haz clic en un elemento del carnet para moverlo.</p>
+            <div class="diseno-controles" id="disenoControles">
+              <label class="fe-zoom">Tamaño
+                <input type="range" id="disenoTam" min="0.5" max="1.8" step="0.01" value="1" aria-label="Tamaño del elemento">
+                <span id="disenoTamTxt">100%</span></label>
+              <button type="button" class="btn btn-ghost btn-sm" id="btnDisenoReset"><i data-lucide="undo-2"></i> Volver a su lugar</button>
+            </div>
+            <p class="lista-hint">Arrastra con el ratón o el dedo; con el teclado, flechas (Mayús para pasos grandes).
+              Los cambios se guardan solo para el modelo <b id="disenoModelo"></b>.</p>
+            <div class="diseno-acciones">
+              <button type="button" class="btn btn-ghost btn-sm" id="btnDisenoResetTodo"><i data-lucide="rotate-ccw"></i> Restablecer todo el modelo</button>
+              <button type="button" class="btn btn-primary btn-sm" id="btnDisenoListo"><i data-lucide="check"></i> Listo</button>
+            </div>
+          </div>
           <div id="carnetPreview" class="carnet-preview">
             <p class="empty-msg">Selecciona un miembro para ver su carnet</p>
           </div>

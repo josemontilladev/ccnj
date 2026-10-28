@@ -1294,8 +1294,9 @@ svg.lucide {
   margin-top: 6mm;
   position: relative; z-index: 2;
 }
+/* Vertical, como una foto de carnet (antes 20 x 18 mm, casi cuadrada) */
 .carnet.m-bandera .c-photo {
-  width: 20mm; height: 18mm;
+  width: 19mm; height: 24mm;
   margin: 0;
   border: .7mm solid #fff;
   border-radius: 0;
@@ -1319,7 +1320,7 @@ svg.lucide {
   font-weight: 600;
   font-size: 3.4mm;
   letter-spacing: 1.2mm;
-  margin-top: 7mm;
+  margin-top: 5.5mm;
   position: relative; z-index: 2;
 }
 .carnet.m-bandera .c-anio { font-weight: 700; padding-left: 1.2mm; }
@@ -1934,6 +1935,25 @@ svg.lucide {
 .fe-formato { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .fe-formato > span { font-weight: 700; font-size: 14.5px; }
 .fe-otra { margin-top: 12px; }
+
+/* ================= MOVER ELEMENTOS DEL CARNET ================= */
+.editar-carnet-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.editar-carnet-btns .btn { justify-content: center; }
+#btnDisenar.active { border-color: var(--azul); background: var(--azul-suave); color: var(--azul); }
+.diseno-panel {
+  border: 1px solid var(--azul); background: #f5f9ff;
+  border-radius: var(--radio-sm); padding: 10px 12px; margin-bottom: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.diseno-sel { font-size: 14.5px; }
+.diseno-controles { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.diseno-controles .fe-zoom { min-width: 180px; font-size: 14px; font-weight: 600; color: var(--tinta); }
+#disenoTamTxt { font-variant-numeric: tabular-nums; width: 40px; color: var(--gris); }
+.diseno-acciones { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.carnet-preview.diseno [data-el] { cursor: move; outline: 1px dashed rgba(0, 95, 178, .45); outline-offset: .3mm; touch-action: none; user-select: none; }
+.carnet-preview.diseno [data-el]:hover { outline-color: var(--azul); }
+.carnet-preview.diseno [data-el].el-sel { outline: 2px solid var(--amarillo); box-shadow: 0 0 0 .6mm rgba(0, 95, 178, .55); }
+.carnet-preview.diseno [data-el]:focus-visible { outline: 2px solid var(--azul); }
 
 /* ================= DATOS PENDIENTES ================= */
 .pend-campos { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 10px; }
