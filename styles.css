@@ -1968,6 +1968,18 @@ svg.lucide {
 .pend-tabla tr.sin-ficha td { background: #fffbe0; }
 .pend-tabla .rol { color: var(--gris); }
 .pend-foot { gap: 10px; flex-wrap: wrap; }
+.pend-tabla tr.grupo th { position: static; background: var(--azul-suave); color: var(--azul); font-size: 14.5px; padding: 8px 10px; border-top: 6px solid var(--blanco); }
+.pend-tabla .grupo-lider { margin-left: 10px; color: var(--tinta); font-weight: 600; }
+.pend-tabla .grupo-n { float: right; color: var(--gris); font-weight: 400; }
+.pend-tabla td.nom { font-weight: 600; }
+.pend-tabla td.tel { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.etq-planilla { font-weight: 600; color: #6b5a00; }
+.canva-opciones { display: flex; flex-direction: column; gap: 10px; }
+.canva-op { display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--linea); border-radius: var(--radio); padding: 14px; }
+.canva-op svg.lucide { width: 26px; height: 26px; color: var(--azul); flex-shrink: 0; margin-top: 2px; }
+.canva-op h3 { font-size: 15.5px; margin-bottom: 2px; }
+.canva-op p { color: var(--gris); font-size: 14px; margin-bottom: 8px; }
+.canva-alcance { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 
 /* ================= AVISO DE SINCRONIZACIÓN ================= */
 .backup-banner.banner-error {

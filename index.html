@@ -445,6 +445,7 @@
         <div class="head-actions">
           <button class="btn btn-green" id="btnPrintCards" disabled><i data-lucide="printer"></i> Imprimir / PDF</button>
           <button class="btn btn-primary" id="btnDownloadPNG" disabled><i data-lucide="download"></i> Descargar PNG</button>
+          <button class="btn btn-ghost" id="btnCanva"><i data-lucide="palette"></i> Exportar para Canva</button>
         </div>
       </header>
 
@@ -632,6 +633,42 @@
       <button class="btn btn-ghost" id="btnPendCopiar"><i data-lucide="copy"></i> Copiar texto</button>
       <button class="btn btn-ghost" id="btnPendCSV"><i data-lucide="file-spreadsheet"></i> Excel (CSV)</button>
       <button class="btn btn-primary" id="btnPendPDF"><i data-lucide="printer"></i> Imprimir / PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL EXPORTAR PARA CANVA ===== -->
+<div class="modal-backdrop hidden" id="canvaModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Exportar carnets para Canva</h2>
+      <button class="modal-close" data-close="canvaModal"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="canva-alcance" role="radiogroup" aria-label="Qué carnets exportar">
+        <label class="check-inline"><input type="radio" name="canvaAlcance" value="sel"> <span id="canvaSelTxt">Los seleccionados</span></label>
+        <label class="check-inline"><input type="radio" name="canvaAlcance" value="activos" checked> <span id="canvaActTxt">Todos los miembros activos</span></label>
+      </div>
+      <div class="canva-opciones">
+        <div class="canva-op">
+          <i data-lucide="file-text"></i>
+          <div>
+            <h3>PDF, una página por carnet</h3>
+            <p>Cada página mide lo mismo que el carnet (54 × 85,6 mm). Al subirlo a Canva cada carnet queda como una página con los textos editables.
+              En la ventana de impresión elige <b>Guardar como PDF</b>.</p>
+            <button class="btn btn-primary btn-sm" id="btnCanvaPDF"><i data-lucide="file-down"></i> Crear PDF</button>
+          </div>
+        </div>
+        <div class="canva-op">
+          <i data-lucide="images"></i>
+          <div>
+            <h3>Imágenes PNG en un ZIP</h3>
+            <p>Un PNG en alta resolución por carnet, listo para subir a Canva como imagen o para imprimir.</p>
+            <button class="btn btn-ghost btn-sm" id="btnCanvaZIP"><i data-lucide="folder-down"></i> Descargar ZIP</button>
+          </div>
+        </div>
+      </div>
+      <p class="lista-hint" id="canvaProgreso"></p>
     </div>
   </div>
 </div>

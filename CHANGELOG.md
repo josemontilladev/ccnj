@@ -7,6 +7,13 @@ equipos) vive dentro de la app, en la sección **Historial**.
 ## 2026-10-28
 
 ### Agregado
+- **Exportar carnets para Canva** (Carnets): PDF con una página del tamaño real
+  del carnet por persona, con texto editable al importarlo en Canva, o un ZIP con
+  un PNG en alta resolución por carnet. Para los seleccionados o todos los activos.
+- **PDF de datos pendientes ordenado por equipo**: una banda por equipo con su
+  número y su líder, resumen con totales arriba.
+- Los nombres de los equipos se muestran tal como están en el documento de la
+  cosecha; se corrigió la ortografía de 6 fichas según ese documento.
 - **Mover elementos del carnet** (estilo Canva): en la vista previa se puede
   arrastrar cada elemento (logo, foto, nombre, cédula, rol, año, QR, dirección),
   cambiarle el tamaño o moverlo con las flechas del teclado. Se guarda por modelo

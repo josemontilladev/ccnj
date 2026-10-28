@@ -3834,10 +3834,14 @@ function faltantesMiembro(m, campos = camposPendientesElegidos()) {
   return campos.filter(k => !String(m[k] || '').trim()).map(k => etiqueta[k]);
 }
 
-/* Filas: miembros con datos faltantes y personas de equipos sin ficha */
+/* Filas: miembros con datos faltantes y personas de equipos sin ficha.
+   Cada fila sabe a qué equipo pertenece para poder agruparla. */
 function filasPendientes() {
   const campos = camposPendientesElegidos();
   const filas = [];
+  const datosEquipo = (eq) => eq
+    ? { eqOrden: eq.orden || 0, lider: (liderDe(eq) && nombreIntegrante(liderDe(eq))) || '' }
+    : { eqOrden: Infinity, lider: '' };
   let base = $('#pendActivos').checked ? MEMBERS.filter(m => m.estado !== 'Inactivo') : MEMBERS;
   if ($('#pendSoloEquipos').checked) base = base.filter(m => rolEnEquipo(m.id));
   for (const m of base) {
@@ -3845,7 +3849,7 @@ function filasPendientes() {
     if (!faltan.length) continue;
     const r = rolEnEquipo(m.id);
     filas.push({
-      nombre: m.nombres || 'Sin nombre', equipo: r ? nombreEquipo(r.equipo) : '', rol: r ? r.rol : '',
+      nombre: m.nombres || 'Sin nombre', rol: r ? r.rol : '', ...datosEquipo(r && r.equipo),
       telefono: fmtTel(m.telefono) || '', falta: faltan.join(', '), sinFicha: false
     });
   }
@@ -3853,32 +3857,51 @@ function filasPendientes() {
     for (const eq of EQUIPOS) {
       for (const p of eq.integrantes || []) {
         if (p.miembroId != null) continue;
-        filas.push({ nombre: p.nombre, equipo: nombreEquipo(eq), rol: p.rol, telefono: '', falta: 'Planilla completa (no está registrado)', sinFicha: true });
+        filas.push({ nombre: p.nombre, rol: p.rol, ...datosEquipo(eq), telefono: '', falta: 'Planilla completa', sinFicha: true });
       }
     }
   }
-  // Primero por equipo (así cada líder ve a los suyos), luego por nombre
-  return filas.sort((a, b) => (a.equipo || '~').localeCompare(b.equipo || '~', 'es') ||
+  // Por número de equipo, el líder primero; al final quienes no están en ningún equipo
+  return filas.sort((a, b) => a.eqOrden - b.eqOrden ||
     (a.rol === 'Líder' ? -1 : b.rol === 'Líder' ? 1 : 0) || a.nombre.localeCompare(b.nombre, 'es'));
 }
 
+const tituloGrupo = (f) => f.eqOrden === Infinity ? 'Sin equipo de cosecha' : `Equipo ${f.eqOrden}`;
+
+/* Tabla agrupada: una cabecera por equipo (con su líder) y sus personas debajo */
 function tablaPendientesHTML(filas) {
-  return `<thead><tr><th>N°</th><th>Nombre</th><th>Equipo de cosecha</th><th>Teléfono</th><th>Le falta</th></tr></thead>
-    <tbody>${filas.map((f, i) => `
+  let html = `<thead><tr><th class="num">N°</th><th>Nombre</th><th>Rol</th><th>Teléfono</th><th>Le falta</th></tr></thead><tbody>`;
+  let grupo = null, n = 0;
+  for (const f of filas) {
+    const g = tituloGrupo(f);
+    if (g !== grupo) {
+      grupo = g;
+      const cuantos = filas.filter(x => tituloGrupo(x) === g).length;
+      html += `<tr class="grupo"><th colspan="5">${esc(g)}${f.lider ? `<span class="grupo-lider">Líder: ${esc(f.lider)}</span>` : ''}<span class="grupo-n">${cuantos} ${cuantos === 1 ? 'persona' : 'personas'}</span></th></tr>`;
+    }
+    html += `
       <tr class="${f.sinFicha ? 'sin-ficha' : ''}">
-        <td class="num">${i + 1}</td>
-        <td>${esc(f.nombre)}</td>
-        <td>${f.equipo ? `${esc(f.equipo.replace(/^Equipo de /, ''))}${f.rol ? ` <span class="rol">(${esc(f.rol)})</span>` : ''}` : '—'}</td>
-        <td>${esc(f.telefono || '—')}</td>
-        <td>${esc(f.falta)}</td>
-      </tr>`).join('')}</tbody>`;
+        <td class="num">${++n}</td>
+        <td class="nom">${esc(f.nombre)}</td>
+        <td>${esc(f.rol || '—')}</td>
+        <td class="tel">${esc(f.telefono || '—')}</td>
+        <td>${f.sinFicha ? '<span class="etq-planilla">Planilla completa</span>' : esc(f.falta)}</td>
+      </tr>`;
+  }
+  return html + '</tbody>';
+}
+
+function resumenPendientes(filas) {
+  const sinFicha = filas.filter(f => f.sinFicha).length;
+  return { total: filas.length, sinFicha, incompletos: filas.length - sinFicha,
+    equipos: new Set(filas.filter(f => f.eqOrden !== Infinity).map(f => f.eqOrden)).size };
 }
 
 function refrescarPendientes() {
   const filas = filasPendientes();
-  const sinFicha = filas.filter(f => f.sinFicha).length;
+  const r = resumenPendientes(filas);
   $('#pendResumen').textContent = filas.length
-    ? `${filas.length} persona(s): ${filas.length - sinFicha} con datos incompletos` + (sinFicha ? ` y ${sinFicha} de los equipos sin ficha.` : '.')
+    ? `${r.total} persona(s): ${r.incompletos} con datos incompletos` + (r.sinFicha ? ` y ${r.sinFicha} de los equipos sin ficha.` : '.')
     : 'Nadie tiene datos pendientes con estos filtros.';
   $('#pendTabla').innerHTML = filas.length ? tablaPendientesHTML(filas) : '';
   return filas;
@@ -3899,25 +3922,65 @@ $('#btnPendCSV').addEventListener('click', () => {
   const filas = filasPendientes();
   if (!filas.length) { toast('No hay datos pendientes que exportar', 'err'); return; }
   const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const lineas = [['N°', 'Nombre', 'Equipo de cosecha', 'Rol', 'Teléfono', 'Le falta'].map(q).join(';'),
-    ...filas.map((f, i) => [i + 1, f.nombre, f.equipo.replace(/^Equipo de /, ''), f.rol, f.telefono, f.falta].map(q).join(';'))];
+  const lineas = [['N°', 'Equipo', 'Líder del equipo', 'Nombre', 'Rol', 'Teléfono', 'Le falta'].map(q).join(';'),
+    ...filas.map((f, i) => [i + 1, f.eqOrden === Infinity ? 'Sin equipo' : f.eqOrden, f.lider, f.nombre, f.rol, f.telefono,
+      f.sinFicha ? 'Planilla completa (no está registrado)' : f.falta].map(q).join(';'))];
   downloadFile(`datos_pendientes_${new Date().toISOString().slice(0, 10)}.csv`, '﻿' + lineas.join('\r\n'), 'text/csv;charset=utf-8');
   toast('Lista de pendientes descargada');
 });
 
+/* Estilo del PDF de pendientes: carta vertical, una banda por equipo */
+const PEND_PDF_CSS = `
+  @page { size: letter; margin: 12mm 12mm 14mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #13233f; margin: 0; font-size: 11.5px; }
+  .cab { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #005FB2; padding-bottom: 8px; margin-bottom: 10px; }
+  .cab img { height: 46px; }
+  .cab h1 { font-size: 17px; margin: 0; color: #005FB2; }
+  .cab p { margin: 2px 0 0; color: #5b6b85; }
+  .cifras { display: flex; gap: 10px; margin: 0 0 12px; }
+  .cifra { border: 1px solid #dbe3ee; border-radius: 6px; padding: 6px 12px; }
+  .cifra b { display: block; font-size: 18px; }
+  .cifra span { color: #5b6b85; font-size: 10.5px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  col.c-num { width: 8mm; } col.c-rol { width: 24mm; } col.c-tel { width: 28mm; } col.c-falta { width: 58mm; }
+  thead { display: table-header-group; }
+  thead th { background: #13233f; color: #fff; text-align: left; padding: 6px 8px; font-size: 11px; }
+  td { padding: 5px 8px; border-bottom: 1px solid #dbe3ee; vertical-align: top; }
+  td.num { color: #5b6b85; text-align: center; }
+  td.nom { font-weight: 600; }
+  td.tel { white-space: nowrap; }
+  tr { page-break-inside: avoid; }
+  tr.grupo th { background: #e7f0fa; color: #005FB2; text-align: left; padding: 7px 8px; font-size: 12.5px; border-top: 8px solid #fff; }
+  tr.grupo { page-break-after: avoid; }
+  .grupo-lider { margin-left: 10px; color: #13233f; font-weight: 600; }
+  .grupo-n { float: right; color: #5b6b85; font-weight: 400; }
+  tr.sin-ficha td { background: #fffbe0; }
+  .etq-planilla { font-weight: 600; color: #6b5a00; }
+  .pie { margin-top: 10px; color: #5b6b85; font-size: 10px; }`;
+
 $('#btnPendPDF').addEventListener('click', () => {
   const filas = filasPendientes();
   if (!filas.length) { toast('No hay datos pendientes que exportar', 'err'); return; }
+  const r = resumenPendientes(filas);
+  const logo = (window.ASSETS && window.ASSETS.logo) || 'logo.png';
   const win = window.open('', '_blank');
   if (!win) { toast('El navegador bloqueó la ventana de impresión', 'err'); return; }
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Datos pendientes</title>
-    <style>${LISTA_DOC_CSS} @page { margin: 12mm; } thead { display: table-header-group; } tr { page-break-inside: avoid; }
-      tr.sin-ficha td { background: #fff8d6 !important; } .rol { color: #555; }</style></head><body>
-    <h1>Confraternidad Cristiana Nueva Jerusalén</h1>
-    <h2>Datos pendientes de la membresía ${esc(settings.anio)}</h2>
-    <p class="total">${esc($('#pendResumen').textContent)} Fecha: ${new Date().toLocaleDateString('es-VE')}</p>
-    <table>${tablaPendientesHTML(filas)}</table>
-    <script>window.onload = () => setTimeout(() => window.print(), 150);<\/script></body></html>`);
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Datos pendientes ${esc(settings.anio)}</title>
+    <style>${PEND_PDF_CSS}</style></head><body>
+    <div class="cab"><img src="${logo}" alt="">
+      <div><h1>Datos pendientes de la membresía ${esc(settings.anio)}</h1>
+      <p>Confraternidad Cristiana Nueva Jerusalén · ${new Date().toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div></div>
+    <div class="cifras">
+      <div class="cifra"><b>${r.total}</b><span>personas en la lista</span></div>
+      <div class="cifra"><b>${r.sinFicha}</b><span>deben entregar la planilla</span></div>
+      <div class="cifra"><b>${r.incompletos}</b><span>con datos incompletos</span></div>
+      ${r.equipos ? `<div class="cifra"><b>${r.equipos}</b><span>equipos con pendientes</span></div>` : ''}
+    </div>
+    <table><colgroup><col class="c-num"><col><col class="c-rol"><col class="c-tel"><col class="c-falta"></colgroup>
+      ${tablaPendientesHTML(filas)}</table>
+    <p class="pie">En amarillo: personas que aún no tienen ficha en el sistema; deben llenar la planilla de membresía completa.</p>
+    <script>window.onload = () => setTimeout(() => window.print(), 250);<\/script></body></html>`);
   win.document.close();
 });
 
@@ -3925,15 +3988,18 @@ $('#btnPendCopiar').addEventListener('click', async () => {
   const filas = filasPendientes();
   if (!filas.length) { toast('No hay datos pendientes que copiar', 'err'); return; }
   // Agrupado por equipo: listo para mandar por WhatsApp a cada líder
-  const grupos = new Map();
-  filas.forEach(f => {
-    const g = f.equipo || 'Sin equipo de cosecha';
-    if (!grupos.has(g)) grupos.set(g, []);
-    grupos.get(g).push(f);
-  });
-  const texto = [`DATOS PENDIENTES — Membresía ${settings.anio}`, ''].concat(
-    [...grupos].flatMap(([g, fs]) => [`*${g}*`, ...fs.map(f => `• ${f.nombre}: ${f.falta}`), ''])).join('\n');
-  try { await navigator.clipboard.writeText(texto); toast('Lista copiada: pégala en WhatsApp'); }
+  const lineas = [`*DATOS PENDIENTES — Membresía ${settings.anio}*`, ''];
+  let grupo = null;
+  for (const f of filas) {
+    const g = tituloGrupo(f);
+    if (g !== grupo) {
+      if (grupo) lineas.push('');
+      grupo = g;
+      lineas.push(`*${g}*${f.lider ? ` (líder: ${f.lider})` : ''}`);
+    }
+    lineas.push(`• ${f.nombre}: ${f.sinFicha ? 'llenar la planilla completa' : f.falta.toLowerCase()}`);
+  }
+  try { await navigator.clipboard.writeText(lineas.join('\n')); toast('Lista copiada: pégala en WhatsApp'); }
   catch { toast('No se pudo copiar; usa Excel o PDF', 'err'); }
 });
 
@@ -4098,6 +4164,87 @@ $('#btnDisenoResetTodo').addEventListener('click', () => {
   diseno.sel = null;
   guardarDiseno();
   renderCarnetPreview();
+});
+
+/* ============================================================
+   EXPORTAR CARNETS PARA CANVA
+   - PDF con una página del tamaño del carnet por persona (texto real,
+     editable al importarlo en Canva)
+   - ZIP con un PNG en alta resolución por carnet
+   ============================================================ */
+function miembrosParaCanva() {
+  const alcance = ($('input[name="canvaAlcance"]:checked') || {}).value;
+  const lista = alcance === 'sel' ? selectedMembers() : MEMBERS.filter(m => m.estado !== 'Inactivo');
+  return ordenarMembers([...lista]);
+}
+
+$('#btnCanva').addEventListener('click', () => {
+  const nSel = selectedMembers().length;
+  const nAct = MEMBERS.filter(m => m.estado !== 'Inactivo').length;
+  $('#canvaSelTxt').textContent = `Los seleccionados (${nSel})`;
+  $('#canvaActTxt').textContent = `Todos los miembros activos (${nAct})`;
+  $('input[name="canvaAlcance"][value="sel"]').disabled = !nSel;
+  $(`input[name="canvaAlcance"][value="${nSel ? 'sel' : 'activos'}"]`).checked = true;
+  $('#canvaProgreso').textContent = '';
+  $('#canvaModal').classList.remove('hidden');
+  refreshIcons();
+});
+
+$('#btnCanvaPDF').addEventListener('click', () => {
+  const lista = miembrosParaCanva();
+  if (!lista.length) { toast('No hay carnets para exportar', 'err'); return; }
+  const win = window.open('', '_blank');
+  if (!win) { toast('El navegador bloqueó la ventana de impresión', 'err'); return; }
+  const css = new URL('styles.css', location.href).href;
+  win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8">
+    <title>Carnets ${esc(settings.anio)} para Canva</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="${css}">
+    <style>
+      @page { size: 54mm 85.6mm; margin: 0; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      .carnet { box-shadow: none !important; border-radius: 0 !important; margin: 0; break-after: page; page-break-after: always; }
+      .carnet:last-child { break-after: auto; page-break-after: auto; }
+      @media screen { body { background: #eef2f7; display: flex; flex-wrap: wrap; gap: 8mm; padding: 8mm; } }
+    </style></head>
+    <body>${lista.map(carnetHTML).join('')}
+    <script>
+      Promise.all([document.fonts.ready, ...[...document.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))])
+        .then(() => setTimeout(() => window.print(), 300));
+    <\/script></body></html>`);
+  win.document.close();
+  toast(`${lista.length} carnet(s): elige "Guardar como PDF" en la ventana de impresión`, 'ok', 7000);
+});
+
+$('#btnCanvaZIP').addEventListener('click', async () => {
+  const lista = miembrosParaCanva();
+  if (!lista.length) { toast('No hay carnets para exportar', 'err'); return; }
+  if (!window.html2canvas || !window.JSZip) { toast('Se necesita conexión a internet para generar las imágenes', 'err'); return; }
+  const btn = $('#btnCanvaZIP');
+  btn.disabled = true;
+  const zip = new JSZip();
+  const usados = new Set();
+  let fallos = 0;
+  try {
+    for (let i = 0; i < lista.length; i++) {
+      $('#canvaProgreso').textContent = `Generando carnet ${i + 1} de ${lista.length}…`;
+      try {
+        const canvas = await carnetToCanvas(lista[i]);
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+        let nombre = `carnet_${nombreArchivo(lista[i])}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        for (let k = 2; usados.has(nombre); k++) nombre = `${nombre}_${k}`;
+        usados.add(nombre);
+        zip.file(`${nombre}.png`, blob);
+      } catch { fallos++; }
+    }
+    $('#canvaProgreso').textContent = 'Comprimiendo…';
+    downloadBlob(`carnets_${settings.anio}_${(CARNET_MODELOS[settings.modeloCarnet] || {}).nombre || ''}.zip`.replace(/\s+/g, '_'),
+      await zip.generateAsync({ type: 'blob' }));
+    $('#canvaProgreso').textContent = `${lista.length - fallos} carnet(s) en el ZIP` + (fallos ? `, ${fallos} con error` : '.');
+    toast('ZIP de carnets descargado');
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 /* ============================================================
