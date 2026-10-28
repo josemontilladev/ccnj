@@ -3306,6 +3306,7 @@ $('#btnEquiposPendientes').addEventListener('click', () => {
   if (!$('#pendCampos').children.length) pintarCamposPendientes();
   $('#pendSoloEquipos').checked = true;
   $('#pendEquipos').checked = true;
+  $('#pendCompletos').checked = true; // desde Equipos: panorama completo de cada equipo
   refrescarPendientes();
   $('#pendModal').classList.remove('hidden');
 });
@@ -3846,11 +3847,12 @@ function filasPendientes() {
   if ($('#pendSoloEquipos').checked) base = base.filter(m => rolEnEquipo(m.id));
   for (const m of base) {
     const faltan = faltantesMiembro(m, campos);
-    if (!faltan.length) continue;
+    if (!faltan.length && !$('#pendCompletos').checked) continue;
     const r = rolEnEquipo(m.id);
     filas.push({
-      nombre: m.nombres || 'Sin nombre', rol: r ? r.rol : '', ...datosEquipo(r && r.equipo),
-      telefono: fmtTel(m.telefono) || '', falta: faltan.join(', '), sinFicha: false
+      nombre: (r && nombreIntegrante(r.equipo.integrantes.find(p => p.miembroId === m.id))) || m.nombres || 'Sin nombre',
+      rol: r ? r.rol : '', ...datosEquipo(r && r.equipo),
+      telefono: fmtTel(m.telefono) || '', falta: faltan.join(', '), sinFicha: false, completo: !faltan.length
     });
   }
   if ($('#pendEquipos').checked) {
@@ -3877,15 +3879,16 @@ function tablaPendientesHTML(filas) {
     if (g !== grupo) {
       grupo = g;
       const cuantos = filas.filter(x => tituloGrupo(x) === g).length;
-      html += `<tr class="grupo"><th colspan="5">${esc(g)}${f.lider ? `<span class="grupo-lider">Líder: ${esc(f.lider)}</span>` : ''}<span class="grupo-n">${cuantos} ${cuantos === 1 ? 'persona' : 'personas'}</span></th></tr>`;
+      const alDia = filas.filter(x => tituloGrupo(x) === g && x.completo).length;
+      html += `<tr class="grupo"><th colspan="5">${esc(g)}${f.lider ? `<span class="grupo-lider">Líder: ${esc(f.lider)}</span>` : ''}<span class="grupo-n">${$('#pendCompletos').checked ? `${alDia} de ${cuantos} al día` : `${cuantos} ${cuantos === 1 ? 'persona' : 'personas'}`}</span></th></tr>`;
     }
     html += `
-      <tr class="${f.sinFicha ? 'sin-ficha' : ''}">
+      <tr class="${f.sinFicha ? 'sin-ficha' : f.completo ? 'al-dia' : ''}">
         <td class="num">${++n}</td>
         <td class="nom">${esc(f.nombre)}</td>
         <td>${esc(f.rol || '—')}</td>
         <td class="tel">${esc(f.telefono || '—')}</td>
-        <td>${f.sinFicha ? '<span class="etq-planilla">Planilla completa</span>' : esc(f.falta)}</td>
+        <td>${f.sinFicha ? '<span class="etq-planilla">Planilla completa</span>' : f.completo ? '<span class="etq-ok">✓ Al día</span>' : esc(f.falta)}</td>
       </tr>`;
   }
   return html + '</tbody>';
@@ -3893,7 +3896,8 @@ function tablaPendientesHTML(filas) {
 
 function resumenPendientes(filas) {
   const sinFicha = filas.filter(f => f.sinFicha).length;
-  return { total: filas.length, sinFicha, incompletos: filas.length - sinFicha,
+  const alDia = filas.filter(f => f.completo).length;
+  return { total: filas.length, sinFicha, alDia, incompletos: filas.length - sinFicha - alDia,
     equipos: new Set(filas.filter(f => f.eqOrden !== Infinity).map(f => f.eqOrden)).size };
 }
 
@@ -3901,7 +3905,7 @@ function refrescarPendientes() {
   const filas = filasPendientes();
   const r = resumenPendientes(filas);
   $('#pendResumen').textContent = filas.length
-    ? `${r.total} persona(s): ${r.incompletos} con datos incompletos` + (r.sinFicha ? ` y ${r.sinFicha} de los equipos sin ficha.` : '.')
+    ? `${r.total} persona(s): ` + (r.alDia ? `${r.alDia} al día, ` : '') + `${r.incompletos} con datos incompletos` + (r.sinFicha ? ` y ${r.sinFicha} sin ficha.` : '.')
     : 'Nadie tiene datos pendientes con estos filtros.';
   $('#pendTabla').innerHTML = filas.length ? tablaPendientesHTML(filas) : '';
   return filas;
@@ -3910,10 +3914,11 @@ function refrescarPendientes() {
 $('#btnExportPendientes').addEventListener('click', () => {
   if (!$('#pendCampos').children.length) pintarCamposPendientes();
   $('#pendSoloEquipos').checked = false;
+  $('#pendCompletos').checked = false;
   refrescarPendientes();
   $('#pendModal').classList.remove('hidden');
 });
-['#pendCampos', '#pendEquipos', '#pendActivos', '#pendSoloEquipos'].forEach(s => $(s).addEventListener('change', () => {
+['#pendCampos', '#pendEquipos', '#pendActivos', '#pendSoloEquipos', '#pendCompletos'].forEach(s => $(s).addEventListener('change', () => {
   refrescarPendientes();
   if (ACTIVE_TAB === 'equipos') renderEquipos();
 }));
@@ -3924,7 +3929,7 @@ $('#btnPendCSV').addEventListener('click', () => {
   const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lineas = [['N°', 'Equipo', 'Líder del equipo', 'Nombre', 'Rol', 'Teléfono', 'Le falta'].map(q).join(';'),
     ...filas.map((f, i) => [i + 1, f.eqOrden === Infinity ? 'Sin equipo' : f.eqOrden, f.lider, f.nombre, f.rol, f.telefono,
-      f.sinFicha ? 'Planilla completa (no está registrado)' : f.falta].map(q).join(';'))];
+      f.sinFicha ? 'Planilla completa (no está registrado)' : f.completo ? 'Al día' : f.falta].map(q).join(';'))];
   downloadFile(`datos_pendientes_${new Date().toISOString().slice(0, 10)}.csv`, '﻿' + lineas.join('\r\n'), 'text/csv;charset=utf-8');
   toast('Lista de pendientes descargada');
 });
@@ -3957,6 +3962,9 @@ const PEND_PDF_CSS = `
   .grupo-n { float: right; color: #5b6b85; font-weight: 400; }
   tr.sin-ficha td { background: #fffbe0; }
   .etq-planilla { font-weight: 600; color: #6b5a00; }
+  .etq-ok { font-weight: 700; color: #0a6626; }
+  .cifra.ok b { color: #0a6626; }
+  tr.al-dia td { background: #f3fbf5; }
   .pie { margin-top: 10px; color: #5b6b85; font-size: 10px; }`;
 
 $('#btnPendPDF').addEventListener('click', () => {
@@ -3973,13 +3981,14 @@ $('#btnPendPDF').addEventListener('click', () => {
       <p>Confraternidad Cristiana Nueva Jerusalén · ${new Date().toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div></div>
     <div class="cifras">
       <div class="cifra"><b>${r.total}</b><span>personas en la lista</span></div>
+      ${r.alDia ? `<div class="cifra ok"><b>${r.alDia}</b><span>al día</span></div>` : ''}
       <div class="cifra"><b>${r.sinFicha}</b><span>deben entregar la planilla</span></div>
       <div class="cifra"><b>${r.incompletos}</b><span>con datos incompletos</span></div>
       ${r.equipos ? `<div class="cifra"><b>${r.equipos}</b><span>equipos con pendientes</span></div>` : ''}
     </div>
     <table><colgroup><col class="c-num"><col><col class="c-rol"><col class="c-tel"><col class="c-falta"></colgroup>
       ${tablaPendientesHTML(filas)}</table>
-    <p class="pie">En amarillo: personas que aún no tienen ficha en el sistema; deben llenar la planilla de membresía completa.</p>
+    <p class="pie">En amarillo: personas que aún no tienen ficha en el sistema; deben llenar la planilla de membresía completa. «Al día»: ficha completa con los datos revisados.</p>
     <script>window.onload = () => setTimeout(() => window.print(), 250);<\/script></body></html>`);
   win.document.close();
 });
@@ -3997,7 +4006,7 @@ $('#btnPendCopiar').addEventListener('click', async () => {
       grupo = g;
       lineas.push(`*${g}*${f.lider ? ` (líder: ${f.lider})` : ''}`);
     }
-    lineas.push(`• ${f.nombre}: ${f.sinFicha ? 'llenar la planilla completa' : f.falta.toLowerCase()}`);
+    lineas.push(`${f.completo ? '✅' : '•'} ${f.nombre}: ${f.sinFicha ? 'llenar la planilla completa' : f.completo ? 'al día' : f.falta.toLowerCase()}`);
   }
   try { await navigator.clipboard.writeText(lineas.join('\n')); toast('Lista copiada: pégala en WhatsApp'); }
   catch { toast('No se pudo copiar; usa Excel o PDF', 'err'); }

@@ -1974,6 +1974,8 @@ svg.lucide {
 .pend-tabla td.nom { font-weight: 600; }
 .pend-tabla td.tel { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .etq-planilla { font-weight: 600; color: #6b5a00; }
+.etq-ok { font-weight: 700; color: var(--verde); }
+.pend-tabla tr.al-dia td { background: #f3fbf5; }
 .canva-opciones { display: flex; flex-direction: column; gap: 10px; }
 .canva-op { display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--linea); border-radius: var(--radio); padding: 14px; }
 .canva-op svg.lucide { width: 26px; height: 26px; color: var(--azul); flex-shrink: 0; margin-top: 2px; }

@@ -401,7 +401,7 @@
           <option value="pendientes">Con datos pendientes</option>
           <option value="sinficha">Solo sin ficha</option>
         </select>
-        <button class="btn btn-ghost" id="btnEquiposPendientes"><i data-lucide="clipboard-check"></i> Lista de pendientes</button>
+        <button class="btn btn-ghost" id="btnEquiposPendientes"><i data-lucide="clipboard-check"></i> Estado de los equipos</button>
       </div>
       <div id="equiposGrid" class="equipos-grid"></div>
     </section>
@@ -623,6 +623,7 @@
       <div class="pend-campos" id="pendCampos"></div>
       <div class="pend-opciones">
         <label class="check-inline"><input type="checkbox" id="pendSoloEquipos"> Solo personas de los equipos de cosecha</label>
+        <label class="check-inline"><input type="checkbox" id="pendCompletos"> Incluir también a quienes ya están al día (estado completo de cada equipo)</label>
         <label class="check-inline"><input type="checkbox" id="pendEquipos" checked> Incluir personas de los equipos de cosecha que aún no tienen ficha</label>
         <label class="check-inline"><input type="checkbox" id="pendActivos" checked> Solo miembros activos</label>
       </div>
